@@ -1,0 +1,21 @@
+[package]
+name = "bitcoin-handshake"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[[bin]]
+name = "bitcoin-handshake"
+path = "src/bin/main.rs"
+
+[dependencies]
+byteorder = "1.4.3"
+getset = "0.1.2"
+sha2 = "0.10.6"
+thiserror = "1.0.37"
+tokio = { version = "1.21.2", features = ["full"] }
+
+[dev-dependencies]
+quickcheck = "1.0.3"
+quickcheck_macros = "1.0.0"
