@@ -1,14 +1,37 @@
-use crate::{checksum, enums::ServiceIdentifier, errors::BitcoinMessageError, BitcoinSerialize};
+use crate::{enums::ServiceIdentifier, errors::BitcoinMessageError};
 use byteorder::{BigEndian, LittleEndian, WriteBytesExt};
 use getset::Getters;
+use sha2::{Digest, Sha256};
 use std::{io::Write, net::SocketAddr};
+
+/// `start_string` bytes for mainnnet
+pub const START_STRING_MAINNET: [u8; 4] = [0xf9, 0xbe, 0xb4, 0xd9];
 
 /// Max payload size, as per Bitcoin protocol docs
 const MAX_SIZE: usize = 32 * 1024 * 1024;
 
 const COMMAND_NAME_SIZE: usize = 12;
 
-pub const START_STRING_MAINNET: [u8; 4] = [0xf9, 0xbe, 0xb4, 0xd9];
+const CHECKSUM_SIZE: usize = 4;
+
+/// Computes Bitcoin checksum for gived data
+pub fn checksum(data: &[u8]) -> [u8; 4] {
+    let mut hasher = Sha256::new();
+    hasher.update(data);
+    hasher.update(data);
+    let hash = hasher.finalize();
+
+    let mut buf = [0u8; CHECKSUM_SIZE];
+    buf.clone_from_slice(&hash[..CHECKSUM_SIZE]);
+
+    buf
+}
+
+/// Trait defining a data structure that can be serialized to bitcoin protocol "wire" data without any outside input.
+pub trait BitcoinSerialize {
+    /// Performs the serialization
+    fn to_bytes(&self) -> Result<Vec<u8>, BitcoinMessageError>;
+}
 
 #[derive(Getters, Debug, Clone)]
 pub struct Message {
@@ -23,12 +46,12 @@ pub struct Message {
 }
 
 impl Message {
-    pub fn new<T: AsRef<[u8]>, S: AsRef<str> + ?Sized>(
-        start_string: T,
-        command_name: &S,
+    pub fn new<S: Into<String> + ?Sized>(
+        start_string: [u8; 4],
+        command_name: S,
         payload: Payload,
     ) -> Result<Self, BitcoinMessageError> {
-        let command_name = command_name.as_ref();
+        let command_name: String = command_name.into();
         if command_name.len() > COMMAND_NAME_SIZE {
             return Err(BitcoinMessageError::CommandNameTooLong);
         }
@@ -36,17 +59,9 @@ impl Message {
             return Err(BitcoinMessageError::CommandNameNonAscii);
         }
 
-        let start_string = start_string.as_ref();
-        if start_string.len() < 4 {
-            return Err(BitcoinMessageError::StartStringTooShort);
-        }
-
-        let mut buf = [0u8; 4];
-        buf.copy_from_slice(&start_string[..4]);
-
         Ok(Self {
-            start_string: buf,
-            command_name: command_name.to_string(),
+            start_string,
+            command_name,
             payload,
         })
     }
@@ -66,10 +81,6 @@ impl BitcoinSerialize for Message {
 
         Ok(buf)
     }
-
-    fn from_bytes() -> Self {
-        todo!()
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -80,14 +91,17 @@ pub enum Payload {
 
 impl BitcoinSerialize for Payload {
     fn to_bytes(&self) -> Result<Vec<u8>, BitcoinMessageError> {
-        match self {
+        let data = match self {
             Payload::Empty => Ok(vec![]),
             Payload::Version(data) => data.to_bytes(),
+        };
+        if let Ok(ref d) = data {
+            if d.len() > MAX_SIZE {
+                return Err(BitcoinMessageError::PayloadTooBig);
+            }
         }
-    }
 
-    fn from_bytes() -> Self {
-        todo!()
+        data
     }
 }
 
@@ -188,10 +202,6 @@ impl BitcoinSerialize for VersionData {
 
         Ok(buf)
     }
-
-    fn from_bytes() -> Self {
-        todo!()
-    }
 }
 
 #[cfg(test)]
@@ -224,18 +234,6 @@ mod tests {
         TestResult::from_bool(matches!(
             Message::new(DUMMY_START_STRING, &name, Payload::Empty),
             Err(BitcoinMessageError::CommandNameNonAscii)
-        ))
-    }
-
-    #[quickcheck]
-    fn message_new_returns_err_on_too_short_start_string(data: Vec<u8>) -> TestResult {
-        if data.len() >= 4 {
-            return TestResult::discard();
-        }
-
-        TestResult::from_bool(matches!(
-            Message::new(data, "", Payload::Empty),
-            Err(BitcoinMessageError::StartStringTooShort)
         ))
     }
 }

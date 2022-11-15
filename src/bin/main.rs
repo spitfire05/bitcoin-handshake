@@ -1,6 +1,5 @@
 use bitcoin_handshake::enums::ServiceIdentifier;
-use bitcoin_handshake::message::{Message, Payload, VersionData};
-use bitcoin_handshake::BitcoinSerialize;
+use bitcoin_handshake::message::{BitcoinSerialize, Message, Payload, VersionData};
 use std::time::SystemTime;
 use std::{error::Error, io::Cursor};
 use tokio::io::AsyncBufReadExt;

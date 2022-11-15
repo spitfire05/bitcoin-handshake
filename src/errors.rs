@@ -5,9 +5,6 @@ pub enum BitcoinMessageError {
     #[error("command name too long")]
     CommandNameTooLong,
 
-    #[error("start_string too short")]
-    StartStringTooShort,
-
     #[error("command name has to be ASCII string")]
     CommandNameNonAscii,
 
@@ -16,4 +13,7 @@ pub enum BitcoinMessageError {
 
     #[error("IO Error during (de)serialization: {0}")]
     SerializationError(#[from] std::io::Error),
+
+    #[error("payload is larger than MAX_SIZE")]
+    PayloadTooBig,
 }
