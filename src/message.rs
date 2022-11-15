@@ -47,7 +47,7 @@ pub struct Message {
     #[getset(get = "pub")]
     command_name: String,
 
-    ///
+    /// The payload of this message.
     #[getset(get = "pub")]
     payload: Payload,
 }
