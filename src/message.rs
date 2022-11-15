@@ -18,7 +18,10 @@ const CHECKSUM_SIZE: usize = 4;
 pub fn checksum(data: &[u8]) -> [u8; 4] {
     let mut hasher = Sha256::new();
     hasher.update(data);
-    hasher.update(data);
+    let hash = hasher.finalize();
+
+    let mut hasher = Sha256::new();
+    hasher.update(hash);
     let hash = hasher.finalize();
 
     let mut buf = [0u8; CHECKSUM_SIZE];
@@ -86,6 +89,7 @@ impl BitcoinSerialize for Message {
         let payload = self.payload.to_bytes()?;
         buf.write_u32::<LittleEndian>(payload.len() as u32)?;
         buf.write_all(&checksum(&payload))?;
+        buf.write_all(&payload)?;
 
         Ok(buf)
     }
@@ -219,6 +223,12 @@ mod tests {
     use quickcheck_macros::quickcheck;
 
     const DUMMY_START_STRING: [u8; 4] = [0; 4];
+
+    #[test]
+    fn checksum_of_empty_data() {
+        let data = vec![];
+        assert_eq!(checksum(&data), [0x5d, 0xf6, 0xe0, 0xe2]);
+    }
 
     #[quickcheck]
     fn message_new_returns_err_on_too_long_command_name(name: String) -> TestResult {
