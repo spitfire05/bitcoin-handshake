@@ -1,26 +1,58 @@
 use bitcoin_handshake::enums::ServiceIdentifier;
 use bitcoin_handshake::message::{BitcoinSerialize, Message, Payload, VersionData};
+use color_eyre::eyre::{Context, Result};
+use env_logger::Env;
+use futures::future::join_all;
+use std::net::SocketAddr;
 use std::time::SystemTime;
-use std::{error::Error, io::Cursor};
 use tokio::io::AsyncBufReadExt;
 use tokio::{
     io::{AsyncWriteExt, BufReader},
     net::{lookup_host, TcpStream},
 };
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
-    let resolved_addrs = lookup_host("seed.bitcoin.sipa.be:8333").await?;
-    let target = resolved_addrs.take(1).collect::<Vec<_>>()[0];
-    println!("{:?}", target);
-    let mut stream = TcpStream::connect(target).await?;
-    let mut buf = Cursor::new(Vec::with_capacity(24));
-    buf.write_all(&[0xf9, 0xbe, 0xb4, 0xd9]).await?;
-    buf.write_all(b"verack").await?;
-    buf.set_position(16);
-    buf.write_u32(0).await?;
-    buf.write_all(&[0x5d, 0xf6, 0xe0, 0xe2]).await?;
+/// Configuration. In real app this should be sourced from config file or cmd line args.
+struct Config {
+    pub dns_seed: String,
+    pub port: u16,
+}
 
+#[tokio::main]
+async fn main() -> Result<()> {
+    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+    color_eyre::install()?;
+
+    let conf = Config {
+        dns_seed: "seed.bitcoin.sipa.be".to_string(),
+        port: 8333,
+    };
+
+    log::info!("Resolving DNS seed `{}`", conf.dns_seed);
+
+    let resolved_addrs = lookup_host((conf.dns_seed, conf.port)).await?;
+    let resolved_addrs = resolved_addrs.collect::<Vec<_>>();
+    log::info!(
+        "Resolved {} addreses. Starting handshakes...",
+        resolved_addrs.len()
+    );
+
+    join_all(resolved_addrs.iter().map(|t| process(*t))).await;
+
+    Ok(())
+}
+
+async fn process(target: SocketAddr) {
+    match process_inner(target).await {
+        Ok(_) => log::debug!("`{}`: Handshake succeded", target),
+        Err(e) => log::error!("`{}`: Failed with: {}", target, e),
+    }
+}
+
+async fn process_inner(target: SocketAddr) -> Result<()> {
+    log::debug!("`{}`: Starting handshake", target);
+    let mut stream = TcpStream::connect(target).await?;
+
+    // send Version
     let version_data = VersionData::new(
         0x00,
         SystemTime::now()
@@ -36,22 +68,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
         0,
         false,
     );
-
     let payload = Payload::Version(version_data);
-
-    let message = Message::new([0xf9, 0xbe, 0xb4, 0xd9], "version", payload)?;
-
+    let message = Message::new([0xf9, 0xbe, 0xb4, 0xd9], "version", payload)
+        .wrap_err_with(|| "Can not construct message")?;
     let bytes = message.to_bytes()?;
-
+    log::trace!("`{}`: TX {:#?}", target, message);
     stream.write_all(&bytes).await?;
+    log::debug!("`{}`: Sent {} bytes", target, bytes.len());
 
-    println!("TX {} bytes", bytes.len());
-
+    // receive Version
     let mut br = BufReader::new(stream);
-
-    let rx = br.fill_buf().await.unwrap();
-
-    println!("RX {} bytes", rx.len());
+    let rx = br.fill_buf().await?;
+    log::debug!("`{}`: Received {} bytes", target, rx.len());
 
     Ok(())
 }

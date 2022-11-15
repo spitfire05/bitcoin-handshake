@@ -11,7 +11,11 @@ path = "src/bin/main.rs"
 
 [dependencies]
 byteorder = "1.4.3"
+color-eyre = "0.6.2"
+env_logger = "0.9.3"
+futures = "0.3.25"
 getset = "0.1.2"
+log = "0.4.17"
 num-derive = "0.3.3"
 num-traits = "0.2.15"
 paste = "1.0.9"

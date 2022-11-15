@@ -11,3 +11,5 @@ mod utils;
 
 /// Protocol version implemented by this crate
 pub const PROTOCOL_VERSION: i32 = 70015;
+
+pub const PORT_MAINNET: u16 = 8333;
