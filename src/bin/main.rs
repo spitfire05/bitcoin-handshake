@@ -1,3 +1,4 @@
+use bitcoin_handshake::enums::ServiceIdentifier;
 use bitcoin_handshake::message::{Message, Payload, VersionData};
 use bitcoin_handshake::BitcoinSerialize;
 use std::time::SystemTime;
@@ -27,9 +28,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap()
             .as_secs() as i64,
-        0x00,
+        ServiceIdentifier::NodeNetwork,
         stream.local_addr()?,
-        0x00,
+        ServiceIdentifier::NodeNetwork,
         target,
         42,
         "".to_string(),

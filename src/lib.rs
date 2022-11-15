@@ -1,3 +1,4 @@
+pub mod enums;
 pub mod errors;
 pub mod message;
 
@@ -19,6 +20,6 @@ pub fn checksum(data: &[u8]) -> [u8; 4] {
 }
 
 pub trait BitcoinSerialize {
-    fn to_bytes(&self) -> Result<Vec<u8>, std::io::Error>;
+    fn to_bytes(&self) -> Result<Vec<u8>, errors::BitcoinMessageError>;
     fn from_bytes() -> Self;
 }

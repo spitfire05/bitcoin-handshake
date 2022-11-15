@@ -1,16 +1,14 @@
-use std::{
-    io::Write,
-    net::{SocketAddr, SocketAddrV6},
-};
-
-use crate::{checksum, errors::BitcoinMessageError, BitcoinSerialize};
+use crate::{checksum, enums::ServiceIdentifier, errors::BitcoinMessageError, BitcoinSerialize};
 use byteorder::{BigEndian, LittleEndian, WriteBytesExt};
 use getset::Getters;
+use std::{io::Write, net::SocketAddr};
 
 /// Max payload size, as per Bitcoin protocol docs
 const MAX_SIZE: usize = 32 * 1024 * 1024;
 
 const COMMAND_NAME_SIZE: usize = 12;
+
+pub const START_STRING_MAINNET: [u8; 4] = [0xf9, 0xbe, 0xb4, 0xd9];
 
 #[derive(Getters, Debug, Clone)]
 pub struct Message {
@@ -55,7 +53,7 @@ impl Message {
 }
 
 impl BitcoinSerialize for Message {
-    fn to_bytes(&self) -> Result<Vec<u8>, std::io::Error> {
+    fn to_bytes(&self) -> Result<Vec<u8>, BitcoinMessageError> {
         let mut buf = Vec::with_capacity(24);
         buf.write_all(&self.start_string)?;
         write!(&mut buf, "{}", self.command_name)?;
@@ -81,7 +79,7 @@ pub enum Payload {
 }
 
 impl BitcoinSerialize for Payload {
-    fn to_bytes(&self) -> Result<Vec<u8>, std::io::Error> {
+    fn to_bytes(&self) -> Result<Vec<u8>, BitcoinMessageError> {
         match self {
             Payload::Empty => Ok(vec![]),
             Payload::Version(data) => data.to_bytes(),
@@ -105,13 +103,13 @@ pub struct VersionData {
     timestamp: i64,
 
     #[getset(get = "pub")]
-    addr_recv_services: u64,
+    addr_recv_services: ServiceIdentifier,
 
     #[getset(get = "pub")]
     addr_recv_socket_address: SocketAddr,
 
     #[getset(get = "pub")]
-    addr_trans_services: u64,
+    addr_trans_services: ServiceIdentifier,
 
     #[getset(get = "pub")]
     addr_trans_socket_address: SocketAddr,
@@ -130,12 +128,13 @@ pub struct VersionData {
 }
 
 impl VersionData {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         services: u64,
         timestamp: i64,
-        addr_recv_services: u64,
+        addr_recv_services: ServiceIdentifier,
         addr_recv_socket_address: SocketAddr,
-        addr_trans_services: u64,
+        addr_trans_services: ServiceIdentifier,
         addr_trans_socket_address: SocketAddr,
         nonce: u64,
         user_agent: String,
@@ -159,12 +158,12 @@ impl VersionData {
 }
 
 impl BitcoinSerialize for VersionData {
-    fn to_bytes(&self) -> Result<Vec<u8>, std::io::Error> {
+    fn to_bytes(&self) -> Result<Vec<u8>, BitcoinMessageError> {
         let mut buf = Vec::new(); // TODO: Estimate capacity?
         buf.write_i32::<LittleEndian>(self.version)?;
         buf.write_u64::<LittleEndian>(self.services)?;
         buf.write_i64::<LittleEndian>(self.timestamp)?;
-        buf.write_u64::<LittleEndian>(self.addr_recv_services)?;
+        buf.write_u64::<LittleEndian>(self.addr_recv_services as u64)?;
         buf.write_u128::<BigEndian>(u128::from_ne_bytes(
             match self.addr_recv_socket_address.ip() {
                 std::net::IpAddr::V4(x) => x.to_ipv6_mapped(),
@@ -173,7 +172,7 @@ impl BitcoinSerialize for VersionData {
             .octets(),
         ))?;
         buf.write_u16::<BigEndian>(self.addr_recv_socket_address.port())?;
-        buf.write_u64::<LittleEndian>(self.addr_trans_services)?;
+        buf.write_u64::<LittleEndian>(self.addr_trans_services as u64)?;
         buf.write_u128::<BigEndian>(u128::from_ne_bytes(
             match self.addr_trans_socket_address.ip() {
                 std::net::IpAddr::V4(x) => x.to_ipv6_mapped(),
