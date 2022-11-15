@@ -6,3 +6,5 @@ pub mod errors;
 
 /// Bitcoin protocol message implementation stub
 pub mod message;
+
+pub const PROTOCOL_VERSION: i32 = 70015;

@@ -1,4 +1,4 @@
-use crate::{enums::ServiceIdentifier, errors::BitcoinMessageError};
+use crate::{enums::ServiceIdentifier, errors::BitcoinMessageError, PROTOCOL_VERSION};
 use byteorder::{BigEndian, LittleEndian, WriteBytesExt};
 use getset::Getters;
 use sha2::{Digest, Sha256};
@@ -57,9 +57,9 @@ impl Message {
     ///
     /// This method can return [`BitcoinMessageError::CommandNameTooLong`] if `command_name` is longer than [`COMMAND_NAME_SIZE`].
     /// [`BitcoinMessageError::CommandNameNonAscii`] will be returned if there are non-ASCII characters inside `command_name`.
-    pub fn new<S: Into<String>>(
+    pub fn new(
         start_string: [u8; 4],
-        command_name: S,
+        command_name: impl Into<String>,
         payload: Payload,
     ) -> Result<Self, BitcoinMessageError> {
         let command_name: String = command_name.into();
@@ -168,7 +168,7 @@ impl VersionData {
         relay: bool,
     ) -> Self {
         Self {
-            version: 70015, // This lib implements only version 70015
+            version: PROTOCOL_VERSION, // any data created by this lib, not deserialized from wire, will always be PROTCOL_VERSION
             services,
             timestamp,
             addr_recv_services,
