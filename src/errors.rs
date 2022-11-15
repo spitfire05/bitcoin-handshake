@@ -16,4 +16,7 @@ pub enum BitcoinMessageError {
 
     #[error("payload is larger than MAX_SIZE")]
     PayloadTooBig,
+
+    #[error("FromUtf8Error during deserialization: {0}")]
+    Utf8DeserializationError(#[from] std::string::FromUtf8Error),
 }

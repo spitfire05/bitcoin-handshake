@@ -1,9 +1,12 @@
 use crate::{
     enums::ServiceIdentifier, errors::BitcoinMessageError, utils::checksum, PROTOCOL_VERSION,
 };
-use byteorder::{BigEndian, LittleEndian, WriteBytesExt};
+use byteorder::{BigEndian, LittleEndian, ReadBytesExt, WriteBytesExt};
 use getset::Getters;
-use std::{io::Write, net::SocketAddr};
+use std::{
+    io::{Read, Write},
+    net::{Ipv6Addr, SocketAddr},
+};
 
 /// `start_string` bytes for mainnnet
 pub const START_STRING_MAINNET: [u8; 4] = [0xf9, 0xbe, 0xb4, 0xd9];
@@ -17,6 +20,13 @@ pub const COMMAND_NAME_SIZE: usize = 12;
 pub trait BitcoinSerialize {
     /// Performs the serialization.
     fn to_bytes(&self) -> Result<Vec<u8>, BitcoinMessageError>;
+}
+
+pub trait BitcoinDeserialize {
+    /// Constructs `Self` from binary data.
+    fn from_bytes(data: &mut impl Read) -> Result<Self, BitcoinMessageError>
+    where
+        Self: std::marker::Sized;
 }
 
 /// Defines a Bitcoin protocol message.
@@ -106,7 +116,7 @@ pub struct VersionData {
     version: i32,
 
     #[getset(get = "pub")]
-    services: u64,
+    services: ServiceIdentifier,
 
     #[getset(get = "pub")]
     timestamp: i64,
@@ -139,7 +149,7 @@ pub struct VersionData {
 impl VersionData {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        services: u64,
+        services: ServiceIdentifier,
         timestamp: i64,
         addr_recv_services: ServiceIdentifier,
         addr_recv_socket_address: SocketAddr,
@@ -170,7 +180,7 @@ impl BitcoinSerialize for VersionData {
     fn to_bytes(&self) -> Result<Vec<u8>, BitcoinMessageError> {
         let mut buf = Vec::new(); // TODO: Estimate capacity?
         buf.write_i32::<LittleEndian>(self.version)?;
-        buf.write_u64::<LittleEndian>(self.services)?;
+        buf.write_u64::<LittleEndian>(self.services as u64)?;
         buf.write_i64::<LittleEndian>(self.timestamp)?;
         buf.write_u64::<LittleEndian>(self.addr_recv_services as u64)?;
         buf.write_u128::<BigEndian>(u128::from_ne_bytes(
@@ -196,6 +206,46 @@ impl BitcoinSerialize for VersionData {
         buf.write_u8(self.relay.into())?;
 
         Ok(buf)
+    }
+}
+
+impl BitcoinDeserialize for VersionData {
+    fn from_bytes(data: &mut impl Read) -> Result<Self, BitcoinMessageError>
+    where
+        Self: std::marker::Sized,
+    {
+        let version = data.read_i32::<LittleEndian>()?;
+        let services: ServiceIdentifier = data.read_u64::<LittleEndian>()?.try_into()?;
+        let timestamp = data.read_i64::<LittleEndian>()?;
+        let addr_recv_services: ServiceIdentifier = data.read_u64::<LittleEndian>()?.try_into()?;
+        let recv_ip: Ipv6Addr = data.read_u128::<BigEndian>()?.into();
+        let recv_port = data.read_u16::<BigEndian>()?;
+        let addr_recv_socket_address: SocketAddr = (recv_ip, recv_port).into();
+        let addr_trans_services: ServiceIdentifier = data.read_u64::<LittleEndian>()?.try_into()?;
+        let trans_ip: Ipv6Addr = data.read_u128::<BigEndian>()?.into();
+        let trans_port = data.read_u16::<BigEndian>()?;
+        let addr_trans_socket_address: SocketAddr = (trans_ip, trans_port).into();
+        let nonce = data.read_u64::<LittleEndian>()?;
+        let user_agent_len = data.read_u8()?;
+        let mut user_agent_bytes = vec![0u8; user_agent_len as usize];
+        data.read_exact(&mut user_agent_bytes)?;
+        let user_agent = String::from_utf8(user_agent_bytes)?;
+        let start_height = data.read_i32::<LittleEndian>()?;
+        let relay: bool = data.read_u8()? != 0x00;
+
+        Ok(Self {
+            version,
+            services,
+            timestamp,
+            addr_recv_services,
+            addr_recv_socket_address,
+            addr_trans_services,
+            addr_trans_socket_address,
+            nonce,
+            user_agent,
+            start_height,
+            relay,
+        })
     }
 }
 

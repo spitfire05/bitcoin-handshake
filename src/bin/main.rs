@@ -1,5 +1,6 @@
 use bitcoin_handshake::enums::ServiceIdentifier;
 use bitcoin_handshake::message::{BitcoinSerialize, Message, Payload, VersionData};
+use bitcoin_handshake::PORT_MAINNET;
 use color_eyre::eyre::{Context, Result};
 use env_logger::Env;
 use futures::future::join_all;
@@ -24,7 +25,7 @@ async fn main() -> Result<()> {
 
     let conf = Config {
         dns_seed: "seed.bitcoin.sipa.be".to_string(),
-        port: 8333,
+        port: PORT_MAINNET,
     };
 
     log::info!("Resolving DNS seed `{}`", conf.dns_seed);
@@ -54,7 +55,7 @@ async fn process_inner(target: SocketAddr) -> Result<()> {
 
     // send Version
     let version_data = VersionData::new(
-        0x00,
+        ServiceIdentifier::NodeNetwork,
         SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap()
