@@ -1,5 +1,8 @@
 use crate::{
-    enums::ServiceIdentifier, errors::BitcoinMessageError, utils::checksum, PROTOCOL_VERSION,
+    enums::ServiceIdentifier,
+    errors::BitcoinMessageError,
+    utils::{checksum, CHECKSUM_SIZE},
+    PROTOCOL_VERSION,
 };
 use byteorder::{BigEndian, LittleEndian, ReadBytesExt, WriteBytesExt};
 use getset::Getters;
@@ -88,10 +91,54 @@ impl BitcoinSerialize for Message {
     }
 }
 
+impl BitcoinDeserialize for Message {
+    fn from_bytes(data: &mut impl Read) -> Result<Self, BitcoinMessageError>
+    where
+        Self: std::marker::Sized,
+    {
+        let mut start_string = [0u8; 4];
+        data.read_exact(&mut start_string)?;
+        let mut command_name_bytes = vec![0u8; COMMAND_NAME_SIZE];
+        data.read_exact(&mut command_name_bytes)?;
+        let command_name = String::from_utf8(command_name_bytes)?;
+        let command_name = command_name.replace('\0', "");
+        let payload_len = data.read_u32::<LittleEndian>()? as usize;
+        if payload_len > MAX_SIZE {
+            return Err(BitcoinMessageError::PayloadTooBig);
+        }
+        let mut checksum = vec![0u8; CHECKSUM_SIZE];
+        data.read_exact(&mut checksum)?;
+        // TODO: verify checksum
+        let payload = Payload::from_bytes(data, &command_name)?;
+
+        Ok(Self {
+            start_string,
+            command_name,
+            payload,
+        })
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum Payload {
     Empty,
     Version(VersionData),
+}
+
+impl Payload {
+    // special case as it needs to know the command name
+    pub fn from_bytes(
+        data: &mut impl Read,
+        command_name: &(impl AsRef<str> + ?Sized),
+    ) -> Result<Self, BitcoinMessageError> {
+        let command_name = command_name.as_ref();
+        match command_name {
+            "version" => Ok(Payload::Version(VersionData::from_bytes(data)?)),
+            _ => Err(BitcoinMessageError::CommandNameUnknown(
+                command_name.to_string(),
+            )),
+        }
+    }
 }
 
 impl BitcoinSerialize for Payload {
@@ -180,9 +227,9 @@ impl BitcoinSerialize for VersionData {
     fn to_bytes(&self) -> Result<Vec<u8>, BitcoinMessageError> {
         let mut buf = Vec::new(); // TODO: Estimate capacity?
         buf.write_i32::<LittleEndian>(self.version)?;
-        buf.write_u64::<LittleEndian>(self.services as u64)?;
+        buf.write_u64::<LittleEndian>(self.services.bits())?;
         buf.write_i64::<LittleEndian>(self.timestamp)?;
-        buf.write_u64::<LittleEndian>(self.addr_recv_services as u64)?;
+        buf.write_u64::<LittleEndian>(self.addr_recv_services.bits())?;
         buf.write_u128::<BigEndian>(u128::from_ne_bytes(
             match self.addr_recv_socket_address.ip() {
                 std::net::IpAddr::V4(x) => x.to_ipv6_mapped(),
@@ -191,7 +238,7 @@ impl BitcoinSerialize for VersionData {
             .octets(),
         ))?;
         buf.write_u16::<BigEndian>(self.addr_recv_socket_address.port())?;
-        buf.write_u64::<LittleEndian>(self.addr_trans_services as u64)?;
+        buf.write_u64::<LittleEndian>(self.addr_trans_services.bits())?;
         buf.write_u128::<BigEndian>(u128::from_ne_bytes(
             match self.addr_trans_socket_address.ip() {
                 std::net::IpAddr::V4(x) => x.to_ipv6_mapped(),
@@ -215,13 +262,16 @@ impl BitcoinDeserialize for VersionData {
         Self: std::marker::Sized,
     {
         let version = data.read_i32::<LittleEndian>()?;
-        let services: ServiceIdentifier = data.read_u64::<LittleEndian>()?.try_into()?;
+        log::trace!("Deserialing version `{}`", version);
+        let services = ServiceIdentifier::from_bits_truncate(data.read_u64::<LittleEndian>()?);
         let timestamp = data.read_i64::<LittleEndian>()?;
-        let addr_recv_services: ServiceIdentifier = data.read_u64::<LittleEndian>()?.try_into()?;
+        let addr_recv_services =
+            ServiceIdentifier::from_bits_truncate(data.read_u64::<LittleEndian>()?);
         let recv_ip: Ipv6Addr = data.read_u128::<BigEndian>()?.into();
         let recv_port = data.read_u16::<BigEndian>()?;
         let addr_recv_socket_address: SocketAddr = (recv_ip, recv_port).into();
-        let addr_trans_services: ServiceIdentifier = data.read_u64::<LittleEndian>()?.try_into()?;
+        let addr_trans_services =
+            ServiceIdentifier::from_bits_truncate(data.read_u64::<LittleEndian>()?);
         let trans_ip: Ipv6Addr = data.read_u128::<BigEndian>()?.into();
         let trans_port = data.read_u16::<BigEndian>()?;
         let addr_trans_socket_address: SocketAddr = (trans_ip, trans_port).into();

@@ -1,35 +1,13 @@
-use crate::errors::BitcoinMessageError;
-use num_derive::FromPrimitive;
-use num_traits::FromPrimitive;
-use paste::paste;
+use bitflags::bitflags;
 
-macro_rules! impl_try_from {
-    ($name:ident, $type:ty, $err_expr:expr) => {
-        impl TryFrom<$type> for $name {
-            type Error = BitcoinMessageError;
-
-            fn try_from(value: $type) -> Result<Self, Self::Error> {
-                paste! {
-                    FromPrimitive::[<from_ $type>](value).ok_or($err_expr(value))
-                }
-            }
-        }
-    };
+bitflags! {
+    pub struct ServiceIdentifier: u64 {
+        const UNNAMED = 0x00;
+        const NODE_NETWORK = 0x01;
+        const NODE_GETUTXO = 0x02;
+        const NODE_BLOOM = 0x04;
+        const NODE_WITNESS = 0x08;
+        const NODE_XTHIN = 0x10;
+        const NODE_NETWORK_LIMITED = 0x0400;
+    }
 }
-
-#[derive(Debug, Clone, Copy, FromPrimitive)]
-pub enum ServiceIdentifier {
-    Unnamed = 0x00,
-    NodeNetwork = 0x01,
-    NodeGetutxo = 0x02,
-    NodeBloom = 0x04,
-    NodeWitness = 0x08,
-    NodeXthin = 0x10,
-    NodeNetworkLimited = 0x0400,
-}
-
-impl_try_from!(
-    ServiceIdentifier,
-    u64,
-    BitcoinMessageError::ServiceIdentifierUnknown
-);

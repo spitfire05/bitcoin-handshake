@@ -1,14 +1,15 @@
 use bitcoin_handshake::enums::ServiceIdentifier;
-use bitcoin_handshake::message::{BitcoinSerialize, Message, Payload, VersionData};
+use bitcoin_handshake::message::{
+    BitcoinDeserialize, BitcoinSerialize, Message, Payload, VersionData,
+};
 use bitcoin_handshake::PORT_MAINNET;
 use color_eyre::eyre::{Context, Result};
 use env_logger::Env;
 use futures::future::join_all;
 use std::net::SocketAddr;
 use std::time::SystemTime;
-use tokio::io::AsyncBufReadExt;
 use tokio::{
-    io::{AsyncWriteExt, BufReader},
+    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     net::{lookup_host, TcpStream},
 };
 
@@ -55,14 +56,14 @@ async fn process_inner(target: SocketAddr) -> Result<()> {
 
     // send Version
     let version_data = VersionData::new(
-        ServiceIdentifier::NodeNetwork,
+        ServiceIdentifier::NODE_NETWORK,
         SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap()
             .as_secs() as i64,
-        ServiceIdentifier::NodeNetwork,
+        ServiceIdentifier::NODE_NETWORK,
         stream.local_addr()?,
-        ServiceIdentifier::NodeNetwork,
+        ServiceIdentifier::NODE_NETWORK,
         target,
         42,
         "".to_string(),
@@ -79,8 +80,14 @@ async fn process_inner(target: SocketAddr) -> Result<()> {
 
     // receive Version
     let mut br = BufReader::new(stream);
-    let rx = br.fill_buf().await?;
-    log::debug!("`{}`: Received {} bytes", target, rx.len());
+    let mut rx = br.fill_buf().await?;
+    let n_recv = rx.len();
+    log::debug!("`{}`: Received {} bytes", target, n_recv);
+
+    let msg_recv = Message::from_bytes(&mut rx)?;
+    log::trace!("`{}`: RX {:#?}", target, msg_recv);
+
+    br.consume(n_recv);
 
     Ok(())
 }

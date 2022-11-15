@@ -1,6 +1,6 @@
 use sha2::{Digest, Sha256};
 
-const CHECKSUM_SIZE: usize = 4;
+pub const CHECKSUM_SIZE: usize = 4;
 
 /// Computes Bitcoin checksum for given data
 pub fn checksum(data: &[u8]) -> [u8; 4] {
