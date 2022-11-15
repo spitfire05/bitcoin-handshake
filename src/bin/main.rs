@@ -1,3 +1,6 @@
+use bitcoin_handshake::message::{Message, Payload, VersionData};
+use bitcoin_handshake::BitcoinSerialize;
+use std::time::SystemTime;
 use std::{error::Error, io::Cursor};
 use tokio::io::AsyncBufReadExt;
 use tokio::{
@@ -17,7 +20,32 @@ async fn main() -> Result<(), Box<dyn Error>> {
     buf.set_position(16);
     buf.write_u32(0).await?;
     buf.write_all(&[0x5d, 0xf6, 0xe0, 0xe2]).await?;
-    //stream.write_all(&buf.into_inner()).await?;
+
+    let version_data = VersionData::new(
+        0x00,
+        SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64,
+        0x00,
+        stream.local_addr()?,
+        0x00,
+        target,
+        42,
+        "".to_string(),
+        0,
+        false,
+    );
+
+    let payload = Payload::Version(version_data);
+
+    let message = Message::new([0xf9, 0xbe, 0xb4, 0xd9], "version", payload)?;
+
+    let bytes = message.to_bytes()?;
+
+    stream.write_all(&bytes).await?;
+
+    println!("TX {} bytes", bytes.len());
 
     let mut br = BufReader::new(stream);
 
