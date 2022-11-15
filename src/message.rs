@@ -1,7 +1,8 @@
-use crate::{enums::ServiceIdentifier, errors::BitcoinMessageError, PROTOCOL_VERSION};
+use crate::{
+    enums::ServiceIdentifier, errors::BitcoinMessageError, utils::checksum, PROTOCOL_VERSION,
+};
 use byteorder::{BigEndian, LittleEndian, WriteBytesExt};
 use getset::Getters;
-use sha2::{Digest, Sha256};
 use std::{io::Write, net::SocketAddr};
 
 /// `start_string` bytes for mainnnet
@@ -11,24 +12,6 @@ pub const START_STRING_MAINNET: [u8; 4] = [0xf9, 0xbe, 0xb4, 0xd9];
 const MAX_SIZE: usize = 32 * 1024 * 1024;
 
 pub const COMMAND_NAME_SIZE: usize = 12;
-
-const CHECKSUM_SIZE: usize = 4;
-
-/// Computes Bitcoin checksum for given data
-pub fn checksum(data: &[u8]) -> [u8; 4] {
-    let mut hasher = Sha256::new();
-    hasher.update(data);
-    let hash = hasher.finalize();
-
-    let mut hasher = Sha256::new();
-    hasher.update(hash);
-    let hash = hasher.finalize();
-
-    let mut buf = [0u8; CHECKSUM_SIZE];
-    buf.clone_from_slice(&hash[..CHECKSUM_SIZE]);
-
-    buf
-}
 
 /// Trait defining a data structure that can be serialized to bitcoin protocol "wire" data without any outside input.
 pub trait BitcoinSerialize {
@@ -223,12 +206,6 @@ mod tests {
     use quickcheck_macros::quickcheck;
 
     const DUMMY_START_STRING: [u8; 4] = [0; 4];
-
-    #[test]
-    fn checksum_of_empty_data() {
-        let data = vec![];
-        assert_eq!(checksum(&data), [0x5d, 0xf6, 0xe0, 0xe2]);
-    }
 
     #[quickcheck]
     fn message_new_returns_err_on_too_long_command_name(name: String) -> TestResult {
