@@ -1,7 +1,10 @@
-use std::net::SocketAddrV6;
+use std::{
+    io::Write,
+    net::{SocketAddr, SocketAddrV6},
+};
 
-use crate::{errors::BitcoinMessageError, BitcoinSerialize};
-use byteorder::{LittleEndian, WriteBytesExt};
+use crate::{checksum, errors::BitcoinMessageError, BitcoinSerialize};
+use byteorder::{BigEndian, LittleEndian, WriteBytesExt};
 use getset::Getters;
 
 /// Max payload size, as per Bitcoin protocol docs
@@ -51,10 +54,43 @@ impl Message {
     }
 }
 
+impl BitcoinSerialize for Message {
+    fn to_bytes(&self) -> Result<Vec<u8>, std::io::Error> {
+        let mut buf = Vec::with_capacity(24);
+        buf.write_all(&self.start_string)?;
+        write!(&mut buf, "{}", self.command_name)?;
+        for _ in 0..(COMMAND_NAME_SIZE - self.command_name.len()) {
+            buf.write_u8(0x00)?;
+        }
+        let payload = self.payload.to_bytes()?;
+        buf.write_u32::<LittleEndian>(payload.len() as u32)?;
+        buf.write_all(&checksum(&payload))?;
+
+        Ok(buf)
+    }
+
+    fn from_bytes() -> Self {
+        todo!()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum Payload {
     Empty,
     Version(VersionData),
+}
+
+impl BitcoinSerialize for Payload {
+    fn to_bytes(&self) -> Result<Vec<u8>, std::io::Error> {
+        match self {
+            Payload::Empty => Ok(vec![]),
+            Payload::Version(data) => data.to_bytes(),
+        }
+    }
+
+    fn from_bytes() -> Self {
+        todo!()
+    }
 }
 
 #[derive(Getters, Debug, Clone)]
@@ -72,13 +108,13 @@ pub struct VersionData {
     addr_recv_services: u64,
 
     #[getset(get = "pub")]
-    addr_recv_socket_address: SocketAddrV6,
+    addr_recv_socket_address: SocketAddr,
 
     #[getset(get = "pub")]
     addr_trans_services: u64,
 
     #[getset(get = "pub")]
-    addr_trans_socket_address: SocketAddrV6,
+    addr_trans_socket_address: SocketAddr,
 
     #[getset(get = "pub")]
     nonce: u64,
@@ -93,12 +129,63 @@ pub struct VersionData {
     relay: bool,
 }
 
+impl VersionData {
+    pub fn new(
+        services: u64,
+        timestamp: i64,
+        addr_recv_services: u64,
+        addr_recv_socket_address: SocketAddr,
+        addr_trans_services: u64,
+        addr_trans_socket_address: SocketAddr,
+        nonce: u64,
+        user_agent: String,
+        start_height: i32,
+        relay: bool,
+    ) -> Self {
+        Self {
+            version: 70015, // This lib implements only version 70015
+            services,
+            timestamp,
+            addr_recv_services,
+            addr_recv_socket_address,
+            addr_trans_services,
+            addr_trans_socket_address,
+            nonce,
+            user_agent,
+            start_height,
+            relay,
+        }
+    }
+}
+
 impl BitcoinSerialize for VersionData {
     fn to_bytes(&self) -> Result<Vec<u8>, std::io::Error> {
         let mut buf = Vec::new(); // TODO: Estimate capacity?
         buf.write_i32::<LittleEndian>(self.version)?;
         buf.write_u64::<LittleEndian>(self.services)?;
         buf.write_i64::<LittleEndian>(self.timestamp)?;
+        buf.write_u64::<LittleEndian>(self.addr_recv_services)?;
+        buf.write_u128::<BigEndian>(u128::from_ne_bytes(
+            match self.addr_recv_socket_address.ip() {
+                std::net::IpAddr::V4(x) => x.to_ipv6_mapped(),
+                std::net::IpAddr::V6(x) => x,
+            }
+            .octets(),
+        ))?;
+        buf.write_u16::<BigEndian>(self.addr_recv_socket_address.port())?;
+        buf.write_u64::<LittleEndian>(self.addr_trans_services)?;
+        buf.write_u128::<BigEndian>(u128::from_ne_bytes(
+            match self.addr_trans_socket_address.ip() {
+                std::net::IpAddr::V4(x) => x.to_ipv6_mapped(),
+                std::net::IpAddr::V6(x) => x,
+            }
+            .octets(),
+        ))?;
+        buf.write_u16::<BigEndian>(self.addr_trans_socket_address.port())?;
+        buf.write_u64::<LittleEndian>(self.nonce)?;
+        buf.write_u8(0x00)?; // TODO: implement user_agent
+        buf.write_i32::<LittleEndian>(self.start_height)?;
+        buf.write_u8(self.relay.into())?;
 
         Ok(buf)
     }
