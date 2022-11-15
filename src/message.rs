@@ -10,11 +10,11 @@ pub const START_STRING_MAINNET: [u8; 4] = [0xf9, 0xbe, 0xb4, 0xd9];
 /// Max payload size, as per Bitcoin protocol docs
 const MAX_SIZE: usize = 32 * 1024 * 1024;
 
-const COMMAND_NAME_SIZE: usize = 12;
+pub const COMMAND_NAME_SIZE: usize = 12;
 
 const CHECKSUM_SIZE: usize = 4;
 
-/// Computes Bitcoin checksum for gived data
+/// Computes Bitcoin checksum for given data
 pub fn checksum(data: &[u8]) -> [u8; 4] {
     let mut hasher = Sha256::new();
     hasher.update(data);
@@ -29,24 +29,32 @@ pub fn checksum(data: &[u8]) -> [u8; 4] {
 
 /// Trait defining a data structure that can be serialized to bitcoin protocol "wire" data without any outside input.
 pub trait BitcoinSerialize {
-    /// Performs the serialization
+    /// Performs the serialization.
     fn to_bytes(&self) -> Result<Vec<u8>, BitcoinMessageError>;
 }
 
+/// Defines a Bitcoin protocol message.
 #[derive(Getters, Debug, Clone)]
 pub struct Message {
+    /// Magic bytes indicating the originating network; used to seek to next message when stream state is unknown.
     #[getset(get = "pub")]
     start_string: [u8; 4],
 
+    /// ASCII string which identifies what message type is contained in the payload.
     #[getset(get = "pub")]
     command_name: String,
 
+    ///
     #[getset(get = "pub")]
     payload: Payload,
 }
 
 impl Message {
-    pub fn new<S: Into<String> + ?Sized>(
+    /// Creates new [`Message`]. The `command_name` parameter will be checked for being ASCII string up to [`COMMAND_NAME_SIZE`] bytes.
+    ///
+    /// This method can return [`BitcoinMessageError::CommandNameTooLong`] if `command_name` is longer than [`COMMAND_NAME_SIZE`].
+    /// [`BitcoinMessageError::CommandNameNonAscii`] will be returned if there are non-ASCII characters inside `command_name`.
+    pub fn new<S: Into<String>>(
         start_string: [u8; 4],
         command_name: S,
         payload: Payload,
