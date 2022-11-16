@@ -64,7 +64,21 @@ impl From<Command> for Vec<u8> {
 
 #[cfg(test)]
 mod tests {
+    use quickcheck::Arbitrary;
+
     use super::*;
+
+    impl Arbitrary for ServiceIdentifier {
+        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+            Self::from_bits_truncate(u64::arbitrary(g))
+        }
+    }
+
+    impl Arbitrary for Command {
+        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+            *g.choose(&[Command::Version, Command::VerAck]).unwrap()
+        }
+    }
 
     #[test]
     fn command_as_string() {

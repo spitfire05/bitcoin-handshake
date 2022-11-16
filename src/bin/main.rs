@@ -3,7 +3,7 @@ use bitcoin_handshake::message::{
     BitcoinDeserialize, BitcoinSerialize, Message, Payload, VersionData,
 };
 use bitcoin_handshake::PORT_MAINNET;
-use color_eyre::eyre::{Context, Result};
+use color_eyre::eyre::Result;
 use env_logger::Env;
 use futures::future::join_all;
 use std::net::SocketAddr;
@@ -71,8 +71,7 @@ async fn process_inner(target: SocketAddr) -> Result<()> {
         false,
     );
     let payload = Payload::Version(version_data);
-    let message = Message::new([0xf9, 0xbe, 0xb4, 0xd9], Command::Version, payload)
-        .wrap_err_with(|| "Can not construct message")?;
+    let message = Message::new([0xf9, 0xbe, 0xb4, 0xd9], Command::Version, payload);
     let bytes = message.to_bytes()?;
     log::trace!("`{}`: TX {:#?}", target, message);
     stream.write_all(&bytes).await?;

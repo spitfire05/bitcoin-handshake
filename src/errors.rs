@@ -17,6 +17,9 @@ pub enum BitcoinMessageError {
     #[error("FromUtf8Error during deserialization: {0}")]
     Utf8DeserializationError(#[from] std::string::FromUtf8Error),
 
-    #[error("Unknown command name: {0}")]
+    #[error("unknown command name: {0}")]
     CommandNameUnknown(String),
+
+    #[error("checksum mismatch")]
+    ChecksumMismatch,
 }

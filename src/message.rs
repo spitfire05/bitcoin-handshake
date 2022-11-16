@@ -1,13 +1,13 @@
 use crate::{
     enums::{Command, ServiceIdentifier},
     errors::BitcoinMessageError,
-    utils::{checksum, CHECKSUM_SIZE},
+    utils::{self, checksum, CHECKSUM_SIZE},
     PROTOCOL_VERSION,
 };
 use byteorder::{BigEndian, LittleEndian, ReadBytesExt, WriteBytesExt};
 use getset::Getters;
 use std::{
-    io::{Read, Write},
+    io::{Cursor, Read, Write},
     net::{Ipv6Addr, SocketAddr},
 };
 
@@ -50,16 +50,12 @@ pub struct Message {
 
 impl Message {
     /// Creates new [`Message`].
-    pub fn new(
-        start_string: [u8; 4],
-        command: Command,
-        payload: Payload,
-    ) -> Result<Self, BitcoinMessageError> {
-        Ok(Self {
+    pub fn new(start_string: [u8; 4], command: Command, payload: Payload) -> Self {
+        Self {
             start_string,
             command,
             payload,
-        })
+        }
     }
 }
 
@@ -99,8 +95,12 @@ impl BitcoinDeserialize for Message {
         }
         let mut checksum = vec![0u8; CHECKSUM_SIZE];
         data.read_exact(&mut checksum)?;
-        // TODO: verify checksum
-        let payload = Payload::from_bytes(data, &command)?;
+        let mut payload_bytes = vec![0u8; payload_len];
+        data.read_exact(&mut payload_bytes)?;
+        if checksum != utils::checksum(&payload_bytes) {
+            return Err(BitcoinMessageError::ChecksumMismatch);
+        }
+        let payload = Payload::from_bytes(&mut Cursor::new(payload_bytes), &command)?;
 
         Ok(Self {
             start_string,
@@ -284,5 +284,94 @@ impl BitcoinDeserialize for VersionData {
             start_height,
             relay,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use hex_literal::hex;
+    use quickcheck::Arbitrary;
+    use quickcheck_macros::quickcheck;
+    use std::io::Cursor;
+
+    impl Arbitrary for VersionData {
+        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+            let services = ServiceIdentifier::arbitrary(g);
+            Self::new(
+                services,
+                i64::arbitrary(g),
+                services,
+                SocketAddr::arbitrary(g),
+                services,
+                SocketAddr::arbitrary(g),
+                u64::arbitrary(g),
+                String::arbitrary(g),
+                i32::arbitrary(g),
+                bool::arbitrary(g),
+            )
+        }
+    }
+
+    impl Arbitrary for Message {
+        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+            let command = Command::arbitrary(g);
+            let payload = match command {
+                Command::Version => Payload::Version(VersionData::arbitrary(g)),
+                Command::VerAck => Payload::Empty,
+            };
+
+            Self::new(
+                [
+                    u8::arbitrary(g),
+                    u8::arbitrary(g),
+                    u8::arbitrary(g),
+                    u8::arbitrary(g),
+                ],
+                command,
+                payload,
+            )
+        }
+    }
+
+    #[quickcheck]
+    fn bytes_to_message_fuzz(data: Vec<u8>) {
+        let mut c = Cursor::new(data);
+        let _ = Message::from_bytes(&mut c);
+    }
+
+    #[quickcheck]
+    fn message_to_bytes_fuzz(x: Message) {
+        let _ = x.to_bytes().unwrap();
+    }
+
+    #[quickcheck]
+    fn version_data_has_correct_protocol_version(x: VersionData) -> bool {
+        *x.version() == PROTOCOL_VERSION
+    }
+
+    #[quickcheck]
+    fn version_data_to_bytes_fuzz(x: VersionData) {
+        let _ = x.to_bytes().unwrap();
+    }
+
+    #[test]
+    fn deserialization_checks_checksum() {
+        // varack with invalid checksum:
+        let mut data = Cursor::new(hex!("f9beb4d976657261636b000000000000000000005df6e0e1"));
+
+        let result = Message::from_bytes(&mut data);
+
+        assert!(matches!(result, Err(BitcoinMessageError::ChecksumMismatch)));
+    }
+
+    #[test]
+    fn verack_deserialization() {
+        // varack:
+        let mut data = Cursor::new(hex!("f9beb4d976657261636b000000000000000000005df6e0e2"));
+
+        let result = Message::from_bytes(&mut data);
+
+        assert!(matches!(result, Ok(_)));
     }
 }
