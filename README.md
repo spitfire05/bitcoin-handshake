@@ -1,6 +1,6 @@
 # bitcoin-handshake
 
-Proof-of-concept tool performing bitcoin protocol handshake with a set of nodes, according to the [protocol specification](https://developer.bitcoin.org/reference/p2p_networking.html#p2p-network).
+Proof-of-concept tool performing bitcoin protocol handshake with a set of nodes, according to the [protocol documentation](https://developer.bitcoin.org/reference/p2p_networking.html#p2p-network).
 
 ## Usage
 
@@ -74,7 +74,7 @@ After this exchange, other messages can flow between nodes.
 
 However, more often than note, bitcoin nodes tend to omit returning the `verack` message,
 and instead start sending other messages like `inv` or `sendheaders`. This is either
-an implementation flaw/optimization, or a misunderstanding of the protocol doc on my side.
+an implementation [flaw/optimization](https://developer.bitcoin.org/reference/intro.html#not-a-specification), or a misunderstanding of the protocol doc on my side.
 
 Due to this, we treat a handshake that did not return the `verack` message, but still sends
 other messages, as `PARTIALLY OK`.
