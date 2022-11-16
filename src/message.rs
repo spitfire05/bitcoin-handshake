@@ -306,6 +306,7 @@ impl BitcoinDeserialize for VersionData {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use hex_literal::hex;

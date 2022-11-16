@@ -1,6 +1,8 @@
 //! `bitcoin-handshake` is a stub crate for communicating with bitcoin network.
 
 #![deny(missing_docs)]
+#![deny(clippy::unwrap_used)]
+#![deny(clippy::expect_used)]
 
 /// Enumarations defining specific status and flags
 pub mod enums;
