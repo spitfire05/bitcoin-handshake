@@ -15,7 +15,7 @@ bitflags! {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Command {
     Version,
     VerAck,
@@ -59,5 +59,28 @@ impl From<Command> for String {
 impl From<Command> for Vec<u8> {
     fn from(c: Command) -> Self {
         c.to_bytes()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn command_as_string() {
+        assert_eq!(Command::Version.to_string(), "version");
+        assert_eq!(Command::VerAck.to_string(), "verack");
+    }
+
+    #[test]
+    fn string_as_command() {
+        assert_eq!(Command::try_from("version").unwrap(), Command::Version);
+        assert_eq!(Command::try_from("verack").unwrap(), Command::VerAck);
+    }
+
+    #[test]
+    fn command_as_bytes() {
+        assert_eq!(Command::Version.to_bytes(), b"version");
+        assert_eq!(Command::VerAck.to_bytes(), b"verack");
     }
 }
