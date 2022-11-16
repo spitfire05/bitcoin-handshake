@@ -38,8 +38,8 @@ The tool tries to perform an exchange of `version` and `verack` messages.
 
 ```mermaid
 sequenceDiagram
-    Node1->>Node2: Version
-    Node2->>Node1: Version
-    Node1->>Node2: VerAck
-    Node2->>Node1: VerAck
+    bitcoin-handshake->>Node: Version
+    Node->>bitcoin-handshake: Version
+    bitcoin-handshake->>Node: VerAck
+    Node->>bitcoin-handshake: VerAck
 ```
