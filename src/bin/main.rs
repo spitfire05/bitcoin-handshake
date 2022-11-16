@@ -9,8 +9,9 @@ use env_logger::Env;
 use futures::future::join_all;
 use std::fmt::Display;
 use std::net::SocketAddr;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::time::timeout;
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     net::{lookup_host, TcpStream},
@@ -25,6 +26,10 @@ struct Args {
     /// TCP port to connect to.
     #[arg(short, long, default_value_t = PORT_MAINNET)]
     port: u16,
+
+    /// Handshake timeout, in seconds.
+    #[arg(short, long, default_value_t = 10)]
+    timeout: u64,
 }
 
 #[tokio::main]
@@ -42,7 +47,7 @@ async fn main() -> Result<()> {
         resolved_addrs.len()
     );
 
-    let results = join_all(resolved_addrs.iter().map(|t| process(*t))).await;
+    let results = join_all(resolved_addrs.iter().map(|t| process(*t, args.timeout))).await;
 
     let fails = results.iter().filter(|x| x.is_err()).count();
     let partial_ok = results
@@ -64,8 +69,13 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn process(target: SocketAddr) -> Result<MessageExchangeResult> {
-    let result = process_inner(target).await;
+async fn process(target: SocketAddr, timeout_secs: u64) -> Result<MessageExchangeResult> {
+    let result = timeout(Duration::from_secs(timeout_secs), process_inner(target)).await;
+
+    let result = match result {
+        Ok(r) => r,
+        Err(e) => Err(e.into()),
+    };
 
     match result {
         Ok(MessageExchangeResult::Ok) => log::debug!("`{}`: Handshake succeeded", target),

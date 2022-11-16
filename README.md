@@ -13,9 +13,10 @@ Arguments:
   <DNS_SEED>  Bitcoin DNS seed to connect to
 
 Options:
-  -p, --port <PORT>  TCP port to connect to [default: 8333]
-  -h, --help         Print help information
-  -V, --version      Print version information
+  -p, --port <PORT>        TCP port to connect to [default: 8333]
+  -t, --timeout <TIMEOUT>  Handshake timeout, in seconds [default: 10]
+  -h, --help               Print help information
+  -V, --version            Print version information
 ```
 
 For example:
