@@ -17,7 +17,7 @@ pub const START_STRING_MAINNET: [u8; 4] = [0xf9, 0xbe, 0xb4, 0xd9];
 /// Max payload size, as per Bitcoin protocol docs
 const MAX_SIZE: usize = 32 * 1024 * 1024;
 
-pub const COMMAND_NAME_SIZE: usize = 12;
+const COMMAND_NAME_SIZE: usize = 12;
 
 /// Trait defining a data structure that can be serialized to bitcoin protocol "wire" data without any outside input.
 pub trait BitcoinSerialize {
@@ -25,6 +25,7 @@ pub trait BitcoinSerialize {
     fn to_bytes(&self) -> Result<Vec<u8>, BitcoinMessageError>;
 }
 
+/// Trait defining a data structure that can be deserialized from bitcoin protocol "wire" data without any outside input.
 pub trait BitcoinDeserialize {
     /// Constructs `Self` from binary data.
     fn from_bytes(data: &mut impl Read) -> Result<Self, BitcoinMessageError>
@@ -111,13 +112,18 @@ impl BitcoinDeserialize for Message {
 }
 
 #[derive(Debug, Clone)]
+/// Bitcoin's Message payload.
 pub enum Payload {
+    /// An empty payload.
     Empty,
+
+    /// Payload of `version` command
     Version(VersionData),
 }
 
 impl Payload {
     // special case as it needs to know the command name
+    /// Deserializes [`Payload`] from buffer of bytes.
     pub fn from_bytes(
         data: &mut impl Read,
         command: &Command,
@@ -146,43 +152,56 @@ impl BitcoinSerialize for Payload {
 }
 
 #[derive(Getters, Debug, Clone)]
+/// `version` message payload.
 pub struct VersionData {
+    /// The highest protocol version understood by the transmitting node.
     #[getset(get = "pub")]
     version: i32,
 
+    /// The services supported by the transmitting node encoded as a bitfield. See the list of service codes below.
     #[getset(get = "pub")]
     services: ServiceIdentifier,
 
+    /// The current Unix epoch time according to the transmitting node’s clock.
     #[getset(get = "pub")]
     timestamp: i64,
 
+    /// The services supported by the receiving node as perceived by the transmitting node. Same format as the ‘services’ field above.
     #[getset(get = "pub")]
     addr_recv_services: ServiceIdentifier,
 
+    /// The IPv6 address of the receiving node as perceived by the transmitting node.
     #[getset(get = "pub")]
     addr_recv_socket_address: SocketAddr,
 
+    /// The services supported by the transmitting node. Should be identical to the ‘services’ field above.
     #[getset(get = "pub")]
     addr_trans_services: ServiceIdentifier,
 
+    /// The IPv6 address of the transmitting node in big endian byte order.
     #[getset(get = "pub")]
     addr_trans_socket_address: SocketAddr,
 
+    /// A random nonce which can help a node detect a connection to itself.
     #[getset(get = "pub")]
     nonce: u64,
 
+    /// User agent as defined by BIP14.
     #[getset(get = "pub")]
     user_agent: String,
 
+    /// The height of the transmitting node’s best block chain or, in the case of an SPV client, best block header chain.
     #[getset(get = "pub")]
     start_height: i32,
 
+    /// Transaction relay flag.
     #[getset(get = "pub")]
     relay: bool,
 }
 
 impl VersionData {
     #[allow(clippy::too_many_arguments)]
+    /// Creates new [`VersionData`].
     pub fn new(
         services: ServiceIdentifier,
         timestamp: i64,
