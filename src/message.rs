@@ -1,5 +1,5 @@
 use crate::{
-    enums::ServiceIdentifier,
+    enums::{Command, ServiceIdentifier},
     errors::BitcoinMessageError,
     utils::{checksum, CHECKSUM_SIZE},
     PROTOCOL_VERSION,
@@ -39,9 +39,9 @@ pub struct Message {
     #[getset(get = "pub")]
     start_string: [u8; 4],
 
-    /// ASCII string which identifies what message type is contained in the payload.
+    /// Identifies what message type is contained in the payload.
     #[getset(get = "pub")]
-    command_name: String,
+    command: Command,
 
     /// The payload of this message.
     #[getset(get = "pub")]
@@ -49,26 +49,15 @@ pub struct Message {
 }
 
 impl Message {
-    /// Creates new [`Message`]. The `command_name` parameter will be checked for being ASCII string up to [`COMMAND_NAME_SIZE`] bytes.
-    ///
-    /// This method can return [`BitcoinMessageError::CommandNameTooLong`] if `command_name` is longer than [`COMMAND_NAME_SIZE`].
-    /// [`BitcoinMessageError::CommandNameNonAscii`] will be returned if there are non-ASCII characters inside `command_name`.
+    /// Creates new [`Message`].
     pub fn new(
         start_string: [u8; 4],
-        command_name: impl Into<String>,
+        command: Command,
         payload: Payload,
     ) -> Result<Self, BitcoinMessageError> {
-        let command_name: String = command_name.into();
-        if command_name.len() > COMMAND_NAME_SIZE {
-            return Err(BitcoinMessageError::CommandNameTooLong);
-        }
-        if !command_name.is_ascii() {
-            return Err(BitcoinMessageError::CommandNameNonAscii);
-        }
-
         Ok(Self {
             start_string,
-            command_name,
+            command,
             payload,
         })
     }
@@ -78,8 +67,9 @@ impl BitcoinSerialize for Message {
     fn to_bytes(&self) -> Result<Vec<u8>, BitcoinMessageError> {
         let mut buf = Vec::with_capacity(24);
         buf.write_all(&self.start_string)?;
-        write!(&mut buf, "{}", self.command_name)?;
-        for _ in 0..(COMMAND_NAME_SIZE - self.command_name.len()) {
+        let command_bytes = self.command.to_bytes();
+        buf.write_all(&command_bytes)?;
+        for _ in 0..(COMMAND_NAME_SIZE - command_bytes.len()) {
             buf.write_u8(0x00)?;
         }
         let payload = self.payload.to_bytes()?;
@@ -102,6 +92,7 @@ impl BitcoinDeserialize for Message {
         data.read_exact(&mut command_name_bytes)?;
         let command_name = String::from_utf8(command_name_bytes)?;
         let command_name = command_name.replace('\0', "");
+        let command: Command = command_name.as_str().try_into()?;
         let payload_len = data.read_u32::<LittleEndian>()? as usize;
         if payload_len > MAX_SIZE {
             return Err(BitcoinMessageError::PayloadTooBig);
@@ -109,11 +100,11 @@ impl BitcoinDeserialize for Message {
         let mut checksum = vec![0u8; CHECKSUM_SIZE];
         data.read_exact(&mut checksum)?;
         // TODO: verify checksum
-        let payload = Payload::from_bytes(data, &command_name)?;
+        let payload = Payload::from_bytes(data, &command)?;
 
         Ok(Self {
             start_string,
-            command_name,
+            command,
             payload,
         })
     }
@@ -129,14 +120,11 @@ impl Payload {
     // special case as it needs to know the command name
     pub fn from_bytes(
         data: &mut impl Read,
-        command_name: &(impl AsRef<str> + ?Sized),
+        command: &Command,
     ) -> Result<Self, BitcoinMessageError> {
-        let command_name = command_name.as_ref();
-        match command_name {
-            "version" => Ok(Payload::Version(VersionData::from_bytes(data)?)),
-            _ => Err(BitcoinMessageError::CommandNameUnknown(
-                command_name.to_string(),
-            )),
+        match command {
+            Command::Version => Ok(Payload::Version(VersionData::from_bytes(data)?)),
+            Command::VerAck => Ok(Payload::Empty),
         }
     }
 }
@@ -296,39 +284,5 @@ impl BitcoinDeserialize for VersionData {
             start_height,
             relay,
         })
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use quickcheck::TestResult;
-    use quickcheck_macros::quickcheck;
-
-    const DUMMY_START_STRING: [u8; 4] = [0; 4];
-
-    #[quickcheck]
-    fn message_new_returns_err_on_too_long_command_name(name: String) -> TestResult {
-        if !name.is_ascii() || name.len() <= COMMAND_NAME_SIZE {
-            return TestResult::discard();
-        }
-
-        TestResult::from_bool(matches!(
-            Message::new(DUMMY_START_STRING, &name, Payload::Empty),
-            Err(BitcoinMessageError::CommandNameTooLong)
-        ))
-    }
-
-    #[quickcheck]
-    fn message_new_returns_err_on_non_ascii_command_name(name: String) -> TestResult {
-        // size will be checked first
-        if name.is_ascii() || name.len() > COMMAND_NAME_SIZE {
-            return TestResult::discard();
-        }
-
-        TestResult::from_bool(matches!(
-            Message::new(DUMMY_START_STRING, &name, Payload::Empty),
-            Err(BitcoinMessageError::CommandNameNonAscii)
-        ))
     }
 }

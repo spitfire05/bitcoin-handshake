@@ -1,4 +1,4 @@
-use bitcoin_handshake::enums::ServiceIdentifier;
+use bitcoin_handshake::enums::{Command, ServiceIdentifier};
 use bitcoin_handshake::message::{
     BitcoinDeserialize, BitcoinSerialize, Message, Payload, VersionData,
 };
@@ -71,7 +71,7 @@ async fn process_inner(target: SocketAddr) -> Result<()> {
         false,
     );
     let payload = Payload::Version(version_data);
-    let message = Message::new([0xf9, 0xbe, 0xb4, 0xd9], "version", payload)
+    let message = Message::new([0xf9, 0xbe, 0xb4, 0xd9], Command::Version, payload)
         .wrap_err_with(|| "Can not construct message")?;
     let bytes = message.to_bytes()?;
     log::trace!("`{}`: TX {:#?}", target, message);
