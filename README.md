@@ -1,6 +1,6 @@
 # bitcoin-handshake
 
-Proof-of-concept tool performing bitcoin protocol handshake with a set of nodes.
+Proof-of-concept tool performing bitcoin protocol handshake with a set of nodes, according to the [protocol specification](https://developer.bitcoin.org/reference/p2p_networking.html#p2p-network).
 
 ## Usage
 
