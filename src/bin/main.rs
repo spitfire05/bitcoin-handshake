@@ -3,6 +3,7 @@ use bitcoin_handshake::message::{
     BitcoinDeserialize, BitcoinSerialize, Message, Payload, VersionData, START_STRING_MAINNET,
 };
 use bitcoin_handshake::PORT_MAINNET;
+use clap::Parser;
 use color_eyre::eyre::{eyre, Result};
 use env_logger::Env;
 use futures::future::join_all;
@@ -15,25 +16,26 @@ use tokio::{
     net::{lookup_host, TcpStream},
 };
 
-/// Configuration. In real app this should be sourced from config file or cmd line args.
-struct Config {
-    pub dns_seed: String,
-    pub port: u16,
+#[derive(Debug, Parser)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// Bitcoin DNS seed to connect to.
+    dns_seed: String,
+
+    /// TCP port to connect to.
+    #[arg(short, long, default_value_t = PORT_MAINNET)]
+    port: u16,
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
     color_eyre::install()?;
+    let args = Args::parse();
 
-    let conf = Config {
-        dns_seed: "seed.bitcoin.sipa.be".to_string(),
-        port: PORT_MAINNET,
-    };
+    log::info!("Resolving DNS seed `{}`", args.dns_seed);
 
-    log::info!("Resolving DNS seed `{}`", conf.dns_seed);
-
-    let resolved_addrs = lookup_host((conf.dns_seed, conf.port)).await?;
+    let resolved_addrs = lookup_host((args.dns_seed, args.port)).await?;
     let resolved_addrs = resolved_addrs.collect::<Vec<_>>();
     log::info!(
         "Resolved {} addreses. Starting handshakes...",
