@@ -1,13 +1,15 @@
 use bitcoin_handshake::enums::{Command, ServiceIdentifier};
 use bitcoin_handshake::message::{
-    BitcoinDeserialize, BitcoinSerialize, Message, Payload, VersionData,
+    BitcoinDeserialize, BitcoinSerialize, Message, Payload, VersionData, START_STRING_MAINNET,
 };
 use bitcoin_handshake::PORT_MAINNET;
-use color_eyre::eyre::Result;
+use color_eyre::eyre::{eyre, Result};
 use env_logger::Env;
 use futures::future::join_all;
+use std::fmt::Display;
 use std::net::SocketAddr;
 use std::time::SystemTime;
+use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     net::{lookup_host, TcpStream},
@@ -38,21 +40,47 @@ async fn main() -> Result<()> {
         resolved_addrs.len()
     );
 
-    join_all(resolved_addrs.iter().map(|t| process(*t))).await;
+    let results = join_all(resolved_addrs.iter().map(|t| process(*t))).await;
+
+    let fails = results.iter().filter(|x| x.is_err()).count();
+    let partial_ok = results
+        .iter()
+        .filter(|x| matches!(x, Ok(MessageExchangeResult::PartialOk)))
+        .count();
+    let ok = results
+        .iter()
+        .filter(|x| matches!(x, Ok(MessageExchangeResult::Ok)))
+        .count();
+
+    log::info!(
+        "Finished! Handshake results: {} OK | {} PARTIALLY OK | {} FAILED",
+        ok,
+        partial_ok,
+        fails
+    );
 
     Ok(())
 }
 
-async fn process(target: SocketAddr) {
-    match process_inner(target).await {
-        Ok(_) => log::debug!("`{}`: Handshake succeded", target),
-        Err(e) => log::error!("`{}`: Failed with: {}", target, e),
-    }
+async fn process(target: SocketAddr) -> Result<MessageExchangeResult> {
+    let result = process_inner(target).await;
+
+    match result {
+        Ok(MessageExchangeResult::Ok) => log::debug!("`{}`: Handshake succeeded", target),
+        Ok(MessageExchangeResult::PartialOk) => {
+            log::debug!("`{}`: Handshake *partially* succeeded", target)
+        }
+        Err(ref e) => log::error!("`{}`: Handshake attempt failed with: {}", target, e),
+    };
+
+    result
 }
 
-async fn process_inner(target: SocketAddr) -> Result<()> {
+async fn process_inner(target: SocketAddr) -> Result<MessageExchangeResult> {
     log::debug!("`{}`: Starting handshake", target);
     let mut stream = TcpStream::connect(target).await?;
+
+    // TODO: check for nonce conflicts!
 
     // send Version
     let version_data = VersionData::new(
@@ -71,22 +99,67 @@ async fn process_inner(target: SocketAddr) -> Result<()> {
         false,
     );
     let payload = Payload::Version(version_data);
-    let message = Message::new([0xf9, 0xbe, 0xb4, 0xd9], Command::Version, payload);
+    let version = Message::new(START_STRING_MAINNET, Command::Version, payload);
+    match send_and_expect(target, &mut stream, &version).await {
+        Ok(MessageExchangeResult::Ok) => {}
+        Ok(MessageExchangeResult::PartialOk) => {
+            return Err(eyre!("Partial OK on `version` exchange is an error"))
+        }
+        Err(e) => return Err(e),
+    }
+
+    let verack = Message::new(START_STRING_MAINNET, Command::VerAck, Payload::Empty);
+
+    send_and_expect(target, &mut stream, &verack).await
+}
+
+enum MessageExchangeResult {
+    Ok,
+    PartialOk,
+}
+
+async fn send_and_expect(
+    target: impl Display,
+    stream: &mut (impl AsyncWrite + AsyncRead + Unpin),
+    message: &Message,
+) -> Result<MessageExchangeResult> {
+    // send
     let bytes = message.to_bytes()?;
     log::trace!("`{}`: TX {:#?}", target, message);
     stream.write_all(&bytes).await?;
     log::debug!("`{}`: Sent {} bytes", target, bytes.len());
 
-    // receive Version
+    // expect same message type
     let mut br = BufReader::new(stream);
     let mut rx = br.fill_buf().await?;
     let n_recv = rx.len();
     log::debug!("`{}`: Received {} bytes", target, n_recv);
 
-    let msg_recv = Message::from_bytes(&mut rx)?;
+    let msg_recv = match Message::from_bytes(&mut rx) {
+        Ok(m) => m,
+        Err(bitcoin_handshake::errors::BitcoinMessageError::CommandNameUnknown(m)) => {
+            log::warn!(
+                "`{}`: expected message command `{}` but got `{}` instead",
+                target,
+                message.command(),
+                m
+            );
+            return Ok(MessageExchangeResult::PartialOk);
+        }
+        Err(e) => return Err(e.into()),
+    };
     log::trace!("`{}`: RX {:#?}", target, msg_recv);
+    if msg_recv.command() != message.command() {
+        log::warn!(
+            "`{}`: expected message command `{}` but got `{}` instead",
+            target,
+            message.command(),
+            msg_recv.command()
+        );
+        return Ok(MessageExchangeResult::PartialOk);
+    }
 
     br.consume(n_recv);
 
-    Ok(())
+    Ok(MessageExchangeResult::Ok)
 }

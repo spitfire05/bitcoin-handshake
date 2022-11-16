@@ -291,7 +291,7 @@ impl BitcoinDeserialize for VersionData {
 mod tests {
     use super::*;
     use hex_literal::hex;
-    use quickcheck::Arbitrary;
+    use quickcheck::{Arbitrary, TestResult};
     use quickcheck_macros::quickcheck;
     use std::io::Cursor;
 
@@ -373,5 +373,23 @@ mod tests {
         let result = Message::from_bytes(&mut data);
 
         assert!(matches!(result, Ok(_)));
+    }
+
+    #[quickcheck]
+    fn empty_payload_has_correct_checksum(m: Message) -> TestResult {
+        match m.payload() {
+            Payload::Version(_) => TestResult::discard(),
+            Payload::Empty => TestResult::from_bool(
+                m.to_bytes()
+                    .unwrap()
+                    .iter()
+                    .rev()
+                    .take(4)
+                    .rev()
+                    .copied()
+                    .collect::<Vec<_>>()
+                    == hex!("5df6e0e2"),
+            ),
+        }
     }
 }
