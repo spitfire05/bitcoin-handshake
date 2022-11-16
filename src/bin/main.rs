@@ -95,7 +95,6 @@ async fn process_inner(target: SocketAddr) -> Result<MessageExchangeResult> {
         stream.local_addr()?,
         ServiceIdentifier::NODE_NETWORK,
         target,
-        42,
         "".to_string(),
         0,
         false,
@@ -126,6 +125,10 @@ async fn send_and_expect(
     message: &Message,
 ) -> Result<MessageExchangeResult> {
     // send
+    let nonce = match message.payload() {
+        Payload::Empty => None,
+        Payload::Version(d) => Some(d.nonce()),
+    };
     let bytes = message.to_bytes()?;
     log::trace!("`{}`: TX {:#?}", target, message);
     stream.write_all(&bytes).await?;
@@ -151,6 +154,13 @@ async fn send_and_expect(
         Err(e) => return Err(e.into()),
     };
     log::trace!("`{}`: RX {:#?}", target, msg_recv);
+    if let Some(n) = nonce {
+        if let Payload::Version(version_data) = msg_recv.payload() {
+            if version_data.nonce() == n {
+                return Err(eyre!("nonce conflict"));
+            }
+        }
+    }
     if msg_recv.command() != message.command() {
         log::warn!(
             "`{}`: expected message command `{}` but got `{}` instead",
