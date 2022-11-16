@@ -4,6 +4,27 @@ Proof-of-concept tool performing bitcoin protocol handshake with a set of nodes.
 
 ## Usage
 
+You need to provide the address of a Bitcoin's DNS seed.
+
+```
+Usage: bitcoin-handshake [OPTIONS] <DNS_SEED>
+
+Arguments:
+  <DNS_SEED>  Bitcoin DNS seed to connect to
+
+Options:
+  -p, --port <PORT>  TCP port to connect to [default: 8333]
+  -h, --help         Print help information
+  -V, --version      Print version information
+```
+
+For example:
+```
+cargo run -- seed.bitcoin.sipa.be
+```
+
+This will give you output similiar to following one:
+
 ```
 [2022-11-16T20:37:33Z INFO  bitcoin_handshake] Resolving DNS seed `seed.bitcoin.sipa.be`
 [2022-11-16T20:37:33Z INFO  bitcoin_handshake] Resolved 25 addreses. Starting handshakes...
@@ -32,6 +53,10 @@ Proof-of-concept tool performing bitcoin protocol handshake with a set of nodes.
 [2022-11-16T20:37:34Z INFO  bitcoin_handshake] Finished! Handshake results: 3 OK | 18 PARTIALLY OK | 4 FAILED
 ```
 
+The last line of the output should contain the results of handshake attempts.
+
+The log level output can be controlled using `RUST_LOG` environment variable (defaults to `info`).
+
 ## How it works
 
 The tool tries to perform an exchange of `version` and `verack` messages.
@@ -43,3 +68,18 @@ sequenceDiagram
     bitcoin-handshake->>Node: VerAck
     Node->>bitcoin-handshake: VerAck
 ```
+
+After this exchange, other messages can flow between nodes.
+
+However, more often than note, bitcoin nodes tend to omit returning the `verack` message,
+and instead start sending other messages like `inv` or `sendheaders`. This is either
+an implementation flaw/optimization, or a misunderstanding of the protocol doc on my side.
+
+Due to this, we treat a handshake that did not return the `verack` message, but still sends
+other messages, as `PARTIALLY OK`.
+
+## Implementation details
+
+No bitcoin-related crates were used, for a reason.
+
+This create can potentially, but unlikely, be evolved into full-fledged bitcoin protocol implementation.
