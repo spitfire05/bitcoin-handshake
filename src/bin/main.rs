@@ -1,3 +1,6 @@
+#![deny(clippy::unwrap_used)]
+#![deny(clippy::expect_used)]
+
 use bitcoin_handshake::enums::{Command, ServiceIdentifier};
 use bitcoin_handshake::message::{
     BitcoinDeserialize, BitcoinSerialize, Message, Payload, VersionData, START_STRING_MAINNET,
@@ -98,8 +101,7 @@ async fn process_inner(target: SocketAddr) -> Result<MessageExchangeResult> {
     let version_data = VersionData::new(
         ServiceIdentifier::NODE_NETWORK,
         SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap()
+            .duration_since(SystemTime::UNIX_EPOCH)?
             .as_secs() as i64,
         ServiceIdentifier::NODE_NETWORK,
         stream.local_addr()?,
