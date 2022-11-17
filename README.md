@@ -2,6 +2,11 @@
 
 Proof-of-concept tool performing bitcoin protocol handshake with a set of nodes, according to the [protocol documentation](https://developer.bitcoin.org/reference/p2p_networking.html#p2p-network).
 
+It consists of two parts:
+
+- Library, defining Bitcoin protocol messages' data structures.
+- Binary, built with tokio-rs, that handles all the IO with remote node(s).
+
 ## Usage
 
 You need to provide the address of a Bitcoin's DNS seed.
