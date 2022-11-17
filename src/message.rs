@@ -64,17 +64,17 @@ impl Message {
 
 impl BitcoinSerialize for Message {
     fn to_bytes(&self) -> Result<Vec<u8>, BitcoinMessageError> {
-        let mut buf = Vec::with_capacity(24);
+        let payload = self.payload.to_bytes()?;
+        let mut buf = Vec::with_capacity(24 + payload.len());
         buf.write_all(&self.start_string)?;
         let command_bytes = self.command.to_bytes();
-        buf.write_all(&command_bytes)?;
+        buf.extend(&command_bytes);
         for _ in 0..(COMMAND_NAME_SIZE - command_bytes.len()) {
             buf.write_u8(0x00)?;
         }
-        let payload = self.payload.to_bytes()?;
         buf.write_u32::<LittleEndian>(payload.len() as u32)?;
         buf.write_all(&checksum(&payload))?;
-        buf.write_all(&payload)?;
+        buf.extend(payload);
 
         Ok(buf)
     }
@@ -243,7 +243,7 @@ impl VersionData {
 
 impl BitcoinSerialize for VersionData {
     fn to_bytes(&self) -> Result<Vec<u8>, BitcoinMessageError> {
-        let mut buf = Vec::new(); // TODO: Estimate capacity?
+        let mut buf = Vec::with_capacity(86 + self.user_agent().len());
         buf.write_i32::<LittleEndian>(self.version)?;
         buf.write_u64::<LittleEndian>(self.services.bits())?;
         buf.write_i64::<LittleEndian>(self.timestamp)?;
