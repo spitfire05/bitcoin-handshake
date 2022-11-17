@@ -1,23 +1,20 @@
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::expect_used)]
 
-use bitcoin_handshake::enums::{Command, ServiceIdentifier};
-use bitcoin_handshake::message::{
-    BitcoinDeserialize, BitcoinSerialize, Message, Payload, VersionData, START_STRING_MAINNET,
-};
-use bitcoin_handshake::PORT_MAINNET;
+use bitcoin_handshake::*;
 use clap::Parser;
 use color_eyre::eyre::{eyre, Result};
 use env_logger::Env;
 use futures::future::join_all;
-use std::fmt::Display;
-use std::net::SocketAddr;
-use std::time::{Duration, SystemTime};
-use tokio::io::{AsyncRead, AsyncWrite};
-use tokio::time::timeout;
+use std::{
+    fmt::Display,
+    net::SocketAddr,
+    time::{Duration, SystemTime},
+};
 use tokio::{
-    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
+    io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader},
     net::{lookup_host, TcpStream},
+    time::timeout,
 };
 
 #[derive(Debug, Parser)]
