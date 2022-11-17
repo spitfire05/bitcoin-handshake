@@ -14,9 +14,11 @@ use std::{
 /// `start_string` bytes for mainnnet
 pub const START_STRING_MAINNET: [u8; 4] = [0xf9, 0xbe, 0xb4, 0xd9];
 
+/// Maximum `user_agent` length in [`VersionData`]
+pub const MAX_USER_AGENT_LEN: usize = 256;
+
 /// Max payload size, as per Bitcoin protocol docs
 const MAX_SIZE: usize = 32 * 1024 * 1024;
-
 const COMMAND_NAME_SIZE: usize = 12;
 
 /// Trait defining a data structure that can be serialized to bitcoin protocol "wire" data without any outside input.
@@ -62,17 +64,20 @@ impl Message {
 
 impl BitcoinSerialize for Message {
     fn to_bytes(&self) -> Result<Vec<u8>, BitcoinMessageError> {
-        let mut buf = Vec::with_capacity(24);
+        let mut payload = self.payload.to_bytes()?;
+        let payload_len = payload.len();
+        let payload_checksum = checksum(&payload);
+        let mut buf = Vec::with_capacity(24 + payload.len());
         buf.write_all(&self.start_string)?;
-        let command_bytes = self.command.to_bytes();
-        buf.write_all(&command_bytes)?;
-        for _ in 0..(COMMAND_NAME_SIZE - command_bytes.len()) {
+        let mut command_bytes = self.command.to_bytes();
+        let command_bytes_len = command_bytes.len();
+        buf.append(&mut command_bytes);
+        for _ in 0..(COMMAND_NAME_SIZE - command_bytes_len) {
             buf.write_u8(0x00)?;
         }
-        let payload = self.payload.to_bytes()?;
-        buf.write_u32::<LittleEndian>(payload.len() as u32)?;
-        buf.write_all(&checksum(&payload))?;
-        buf.write_all(&payload)?;
+        buf.write_u32::<LittleEndian>(payload_len as u32)?;
+        buf.write_all(&payload_checksum)?;
+        buf.append(&mut payload);
 
         Ok(buf)
     }
@@ -202,6 +207,10 @@ pub struct VersionData {
 impl VersionData {
     #[allow(clippy::too_many_arguments)]
     /// Creates new [`VersionData`].
+    ///
+    /// # Panics
+    ///
+    /// This method will panic if `user_agent.len()` is more than [`MAX_USER_AGENT_LEN`].
     pub fn new(
         services: ServiceIdentifier,
         timestamp: i64,
@@ -213,6 +222,12 @@ impl VersionData {
         start_height: i32,
         relay: bool,
     ) -> Self {
+        if user_agent.len() > MAX_USER_AGENT_LEN {
+            panic!(
+                "user_agent length has to be {} bytes max",
+                MAX_USER_AGENT_LEN
+            );
+        }
         Self {
             version: PROTOCOL_VERSION, // any data created by this lib, not deserialized from wire, will always be PROTCOL_VERSION
             services,
@@ -231,7 +246,7 @@ impl VersionData {
 
 impl BitcoinSerialize for VersionData {
     fn to_bytes(&self) -> Result<Vec<u8>, BitcoinMessageError> {
-        let mut buf = Vec::new(); // TODO: Estimate capacity?
+        let mut buf = Vec::with_capacity(86 + self.user_agent().len());
         buf.write_i32::<LittleEndian>(self.version)?;
         buf.write_u64::<LittleEndian>(self.services.bits())?;
         buf.write_i64::<LittleEndian>(self.timestamp)?;
@@ -254,7 +269,8 @@ impl BitcoinSerialize for VersionData {
         ))?;
         buf.write_u16::<BigEndian>(self.addr_trans_socket_address.port())?;
         buf.write_u64::<LittleEndian>(self.nonce)?;
-        buf.write_u8(0x00)?; // TODO: implement user_agent
+        buf.write_u8(self.user_agent().len() as u8)?;
+        buf.write_all(self.user_agent().as_bytes())?;
         buf.write_i32::<LittleEndian>(self.start_height)?;
         buf.write_u8(self.relay.into())?;
 
@@ -312,10 +328,20 @@ mod tests {
     use hex_literal::hex;
     use quickcheck::{Arbitrary, TestResult};
     use quickcheck_macros::quickcheck;
-    use std::io::Cursor;
+    use std::{
+        io::Cursor,
+        net::{IpAddr, Ipv4Addr},
+        time::SystemTime,
+    };
 
     impl Arbitrary for VersionData {
         fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+            let user_agent = loop {
+                let gen = String::arbitrary(g);
+                if gen.len() <= MAX_USER_AGENT_LEN {
+                    break gen;
+                }
+            };
             let services = ServiceIdentifier::arbitrary(g);
             Self::new(
                 services,
@@ -324,7 +350,7 @@ mod tests {
                 SocketAddr::arbitrary(g),
                 services,
                 SocketAddr::arbitrary(g),
-                String::arbitrary(g),
+                user_agent,
                 i32::arbitrary(g),
                 bool::arbitrary(g),
             )
@@ -409,5 +435,25 @@ mod tests {
                     == hex!("5df6e0e2"),
             ),
         }
+    }
+
+    #[test]
+    #[should_panic]
+    fn version_data_new_with_user_agent_longer_than_max_length_panics() {
+        let user_agent = (0..MAX_USER_AGENT_LEN + 1).map(|_| 'a').collect::<String>();
+        let _ = VersionData::new(
+            ServiceIdentifier::NODE_NETWORK,
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs() as i64,
+            ServiceIdentifier::NODE_NETWORK,
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080),
+            ServiceIdentifier::NODE_NETWORK,
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080),
+            user_agent,
+            0,
+            false,
+        );
     }
 }
