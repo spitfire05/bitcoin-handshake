@@ -64,17 +64,20 @@ impl Message {
 
 impl BitcoinSerialize for Message {
     fn to_bytes(&self) -> Result<Vec<u8>, BitcoinMessageError> {
-        let payload = self.payload.to_bytes()?;
+        let mut payload = self.payload.to_bytes()?;
+        let payload_len = payload.len();
+        let payload_checksum = checksum(&payload);
         let mut buf = Vec::with_capacity(24 + payload.len());
         buf.write_all(&self.start_string)?;
-        let command_bytes = self.command.to_bytes();
-        buf.extend(&command_bytes);
-        for _ in 0..(COMMAND_NAME_SIZE - command_bytes.len()) {
+        let mut command_bytes = self.command.to_bytes();
+        let command_bytes_len = command_bytes.len();
+        buf.append(&mut command_bytes);
+        for _ in 0..(COMMAND_NAME_SIZE - command_bytes_len) {
             buf.write_u8(0x00)?;
         }
-        buf.write_u32::<LittleEndian>(payload.len() as u32)?;
-        buf.write_all(&checksum(&payload))?;
-        buf.extend(payload);
+        buf.write_u32::<LittleEndian>(payload_len as u32)?;
+        buf.write_all(&payload_checksum)?;
+        buf.append(&mut payload);
 
         Ok(buf)
     }
