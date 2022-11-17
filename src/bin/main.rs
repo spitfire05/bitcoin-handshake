@@ -6,7 +6,6 @@ use clap::Parser;
 use color_eyre::eyre::{eyre, Result};
 use futures::future::join_all;
 use std::{
-    fmt::Display,
     net::SocketAddr,
     time::{Duration, SystemTime},
 };
@@ -69,7 +68,7 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-#[instrument]
+#[instrument(name = "handshake", skip(timeout_secs))]
 async fn process(target: SocketAddr, timeout_secs: u64) -> Result<MessageExchangeResult> {
     let result = timeout(Duration::from_secs(timeout_secs), process_inner(target)).await;
 
@@ -79,19 +78,18 @@ async fn process(target: SocketAddr, timeout_secs: u64) -> Result<MessageExchang
     };
 
     match result {
-        Ok(MessageExchangeResult::Ok) => tracing::debug!("`{}`: Handshake succeeded", target),
+        Ok(MessageExchangeResult::Ok) => tracing::debug!("handshake succeeded"),
         Ok(MessageExchangeResult::PartialOk) => {
-            tracing::debug!("`{}`: Handshake *partially* succeeded", target)
+            tracing::debug!("`handshake *partially* succeeded")
         }
-        Err(ref e) => tracing::error!("`{}`: Handshake attempt failed with: {}", target, e),
+        Err(ref e) => tracing::error!("handshake attempt failed with: {}", e),
     };
 
     result
 }
 
-#[instrument]
 async fn process_inner(target: SocketAddr) -> Result<MessageExchangeResult> {
-    tracing::debug!("`{}`: Starting handshake", target);
+    tracing::debug!("Starting handshake");
     let mut stream = TcpStream::connect(target).await?;
 
     // send Version
@@ -110,7 +108,7 @@ async fn process_inner(target: SocketAddr) -> Result<MessageExchangeResult> {
     );
     let payload = Payload::Version(version_data);
     let version = Message::new(START_STRING_MAINNET, Command::Version, payload);
-    match send_and_expect(target, &mut stream, &version).await {
+    match send_and_expect(&mut stream, &version).await {
         Ok(MessageExchangeResult::Ok) => {}
         Ok(MessageExchangeResult::PartialOk) => {
             return Err(eyre!("Partial OK on `version` exchange is an error"))
@@ -120,7 +118,7 @@ async fn process_inner(target: SocketAddr) -> Result<MessageExchangeResult> {
 
     let verack = Message::new(START_STRING_MAINNET, Command::VerAck, Payload::Empty);
 
-    send_and_expect(target, &mut stream, &verack).await
+    send_and_expect(&mut stream, &verack).await
 }
 
 enum MessageExchangeResult {
@@ -129,7 +127,6 @@ enum MessageExchangeResult {
 }
 
 async fn send_and_expect(
-    target: impl Display,
     stream: &mut (impl AsyncWrite + AsyncRead + Unpin),
     message: &Message,
 ) -> Result<MessageExchangeResult> {
@@ -139,22 +136,21 @@ async fn send_and_expect(
         Payload::Version(d) => Some(d.nonce()),
     };
     let bytes = message.to_bytes()?;
-    tracing::trace!("`{}`: TX {:#?}", target, message);
+    tracing::trace!("TX {:#?}", message);
     stream.write_all(&bytes).await?;
-    tracing::debug!("`{}`: Sent {} bytes", target, bytes.len());
+    tracing::debug!("Sent {} bytes", bytes.len());
 
     // expect same message type
     let mut br = BufReader::new(stream);
     let mut rx = br.fill_buf().await?;
     let n_recv = rx.len();
-    tracing::debug!("`{}`: Received {} bytes", target, n_recv);
+    tracing::debug!("Received {} bytes", n_recv);
 
     let msg_recv = match Message::from_bytes(&mut rx) {
         Ok(m) => m,
         Err(bitcoin_handshake::errors::BitcoinMessageError::CommandNameUnknown(m)) => {
             tracing::warn!(
-                "`{}`: expected message command `{}` but got `{}` instead",
-                target,
+                "expected message command `{}` but got `{}` instead",
                 message.command(),
                 m
             );
@@ -162,7 +158,7 @@ async fn send_and_expect(
         }
         Err(e) => return Err(e.into()),
     };
-    tracing::trace!("`{}`: RX {:#?}", target, msg_recv);
+    tracing::trace!("RX {:#?}", msg_recv);
     if let Some(n) = nonce {
         if let Payload::Version(version_data) = msg_recv.payload() {
             if version_data.nonce() == n {
@@ -172,8 +168,7 @@ async fn send_and_expect(
     }
     if msg_recv.command() != message.command() {
         tracing::warn!(
-            "`{}`: expected message command `{}` but got `{}` instead",
-            target,
+            "expected message command `{}` but got `{}` instead",
             message.command(),
             msg_recv.command()
         );

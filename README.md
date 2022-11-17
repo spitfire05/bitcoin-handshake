@@ -25,38 +25,40 @@ Options:
 ```
 
 For example:
+
 ```
 cargo run -- seed.bitcoin.sipa.be
 ```
 
 This will give you output similiar to following one:
 
-```
-[2022-11-16T20:37:33Z INFO  bitcoin_handshake] Resolving DNS seed `seed.bitcoin.sipa.be`
-[2022-11-16T20:37:33Z INFO  bitcoin_handshake] Resolved 25 addreses. Starting handshakes...
-[2022-11-16T20:37:33Z ERROR bitcoin_handshake] `2.200.165.248:8333`: Handshake attempt failed with: IO Error during (de)serialization: failed to fill whole buffer
-[2022-11-16T20:37:33Z WARN  bitcoin_handshake] `104.248.139.211:8333`: expected message command `verack` but got `sendheaders` instead
-[2022-11-16T20:37:33Z WARN  bitcoin_handshake] `80.241.211.241:8333`: expected message command `verack` but got `sendheaders` instead
-[2022-11-16T20:37:33Z ERROR bitcoin_handshake] `159.224.189.250:8333`: Handshake attempt failed with: IO Error during (de)serialization: failed to fill whole buffer
-[2022-11-16T20:37:34Z WARN  bitcoin_handshake] `5.79.84.204:8333`: expected message command `verack` but got `sendheaders` instead
-[2022-11-16T20:37:34Z WARN  bitcoin_handshake] `3.9.120.33:8333`: expected message command `verack` but got `sendheaders` instead
-[2022-11-16T20:37:34Z WARN  bitcoin_handshake] `81.224.44.164:8333`: expected message command `verack` but got `sendheaders` instead
-[2022-11-16T20:37:34Z WARN  bitcoin_handshake] `82.64.49.27:8333`: expected message command `verack` but got `sendheaders` instead
-[2022-11-16T20:37:34Z WARN  bitcoin_handshake] `34.247.49.32:8333`: expected message command `verack` but got `sendheaders` instead
-[2022-11-16T20:37:34Z WARN  bitcoin_handshake] `3.249.252.78:8333`: expected message command `verack` but got `sendheaders` instead
-[2022-11-16T20:37:34Z WARN  bitcoin_handshake] `213.250.21.112:8333`: expected message command `verack` but got `sendheaders` instead
-[2022-11-16T20:37:34Z WARN  bitcoin_handshake] `85.208.71.39:8333`: expected message command `verack` but got `sendheaders` instead
-[2022-11-16T20:37:34Z WARN  bitcoin_handshake] `46.208.252.189:8333`: expected message command `verack` but got `sendheaders` instead
-[2022-11-16T20:37:34Z WARN  bitcoin_handshake] `5.15.28.107:8333`: expected message command `verack` but got `sendheaders` instead
-[2022-11-16T20:37:34Z ERROR bitcoin_handshake] `173.255.204.124:8333`: Handshake attempt failed with: IO Error during (de)serialization: failed to fill whole buffer
-[2022-11-16T20:37:34Z WARN  bitcoin_handshake] `73.153.176.182:8333`: expected message command `verack` but got `sendheaders` instead
-[2022-11-16T20:37:34Z ERROR bitcoin_handshake] `3.35.1.75:8333`: Handshake attempt failed with: IO Error during (de)serialization: failed to fill whole buffer
-[2022-11-16T20:37:34Z WARN  bitcoin_handshake] `13.244.60.210:8333`: expected message command `verack` but got `sendheaders` instead
-[2022-11-16T20:37:34Z WARN  bitcoin_handshake] `185.148.146.246:8333`: expected message command `verack` but got `sendheaders` instead
-[2022-11-16T20:37:34Z WARN  bitcoin_handshake] `184.64.190.218:8333`: expected message command `verack` but got `sendheaders` instead
-[2022-11-16T20:37:34Z WARN  bitcoin_handshake] `158.140.141.69:8333`: expected message command `verack` but got `sendheaders` instead
-[2022-11-16T20:37:34Z WARN  bitcoin_handshake] `159.89.42.205:8333`: expected message command `verack` but got `sendheaders` instead
-[2022-11-16T20:37:34Z INFO  bitcoin_handshake] Finished! Handshake results: 3 OK | 18 PARTIALLY OK | 4 FAILED
+```log
+2022-11-17T22:46:55.331282Z  INFO bitcoin_handshake: Resolving DNS seed `seed.bitcoin.sipa.be`
+2022-11-17T22:46:55.334820Z  INFO bitcoin_handshake: Resolved 25 addreses. Starting handshakes...
+2022-11-17T22:46:55.410754Z ERROR handshake{target=13.48.127.4:8333}: bitcoin_handshake: handshake attempt failed with: IO Error during (de)serialization: failed to fill whole buffer
+2022-11-17T22:46:55.417025Z ERROR handshake{target=176.9.84.209:8333}: bitcoin_handshake: handshake attempt failed with: IO Error during (de)serialization: failed to fill whole buffer
+2022-11-17T22:46:55.442688Z ERROR handshake{target=65.108.200.37:8333}: bitcoin_handshake: handshake attempt failed with: IO Error during (de)serialization: failed to fill whole buffer
+2022-11-17T22:46:55.442910Z  WARN handshake{target=87.236.195.198:8333}: bitcoin_handshake: expected message command `verack` but got `sendheaders` instead
+2022-11-17T22:46:55.447682Z  WARN handshake{target=104.244.73.6:8333}: bitcoin_handshake: expected message command `verack` but got `sendheaders` instead
+2022-11-17T22:46:55.455978Z  WARN handshake{target=5.9.105.68:8333}: bitcoin_handshake: expected message command `verack` but got `sendheaders` instead
+2022-11-17T22:46:55.465712Z  WARN handshake{target=3.8.133.46:8333}: bitcoin_handshake: expected message command `verack` but got `sendheaders` instead
+2022-11-17T22:46:55.465785Z  WARN handshake{target=188.166.102.98:8333}: bitcoin_handshake: expected message command `verack` but got `sendheaders` instead
+2022-11-17T22:46:55.469527Z ERROR handshake{target=31.18.168.192:8333}: bitcoin_handshake: handshake attempt failed with: IO Error during (de)serialization: failed to fill whole buffer
+2022-11-17T22:46:55.479653Z ERROR handshake{target=79.115.212.244:8333}: bitcoin_handshake: handshake attempt failed with: IO Error during (de)serialization: failed to fill whole buffer
+2022-11-17T22:46:55.485573Z  WARN handshake{target=84.255.244.61:8333}: bitcoin_handshake: expected message command `verack` but got `sendheaders` instead
+2022-11-17T22:46:55.487334Z ERROR handshake{target=80.94.107.94:8333}: bitcoin_handshake: handshake attempt failed with: IO Error during (de)serialization: failed to fill whole buffer
+2022-11-17T22:46:55.497705Z  WARN handshake{target=143.110.175.248:8333}: bitcoin_handshake: expected message command `verack` but got `sendheaders` instead
+2022-11-17T22:46:55.581902Z  WARN handshake{target=2.59.236.56:8333}: bitcoin_handshake: expected message command `verack` but got `sendheaders` instead
+2022-11-17T22:46:55.739703Z  WARN handshake{target=3.138.122.100:8333}: bitcoin_handshake: expected message command `verack` but got `sendheaders` instead
+2022-11-17T22:46:55.784641Z  WARN handshake{target=173.48.112.106:8333}: bitcoin_handshake: expected message command `verack` but got `sendheaders` instead
+2022-11-17T22:46:55.786252Z  WARN handshake{target=74.76.43.77:8333}: bitcoin_handshake: expected message command `verack` but got `sendheaders` instead
+2022-11-17T22:46:55.876216Z  WARN handshake{target=154.38.167.152:8333}: bitcoin_handshake: expected message command `verack` but got `sendheaders` instead
+2022-11-17T22:46:55.882179Z  WARN handshake{target=3.101.67.35:8333}: bitcoin_handshake: expected message command `verack` but got `sendheaders` instead
+2022-11-17T22:46:55.882410Z  WARN handshake{target=13.66.248.91:8333}: bitcoin_handshake: expected message command `verack` but got `sendheaders` instead
+2022-11-17T22:46:55.891033Z  WARN handshake{target=13.57.250.92:8333}: bitcoin_handshake: expected message command `verack` but got `sendheaders` instead
+2022-11-17T22:46:55.891536Z ERROR handshake{target=13.112.248.184:8333}: bitcoin_handshake: handshake attempt failed with: IO Error during (de)serialization: failed to fill whole buffer
+2022-11-17T22:46:56.119996Z  WARN handshake{target=13.113.139.174:8333}: bitcoin_handshake: expected message command `verack` but got `sendheaders` instead
+2022-11-17T22:46:56.120468Z  INFO bitcoin_handshake: Finished! Handshake results: 2 OK | 16 PARTIALLY OK | 7 FAILED
 ```
 
 The last line of the output should contain the results of handshake attempts.
