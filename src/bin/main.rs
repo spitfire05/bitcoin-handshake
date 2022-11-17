@@ -92,8 +92,6 @@ async fn process_inner(target: SocketAddr) -> Result<MessageExchangeResult> {
     log::debug!("`{}`: Starting handshake", target);
     let mut stream = TcpStream::connect(target).await?;
 
-    // TODO: check for nonce conflicts!
-
     // send Version
     let version_data = VersionData::new(
         ServiceIdentifier::NODE_NETWORK,
