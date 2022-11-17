@@ -77,7 +77,7 @@ sequenceDiagram
 
 After this exchange, other messages can flow between nodes.
 
-However, more often than note, bitcoin nodes tend to omit returning the `verack` message,
+However, more often than not, bitcoin nodes tend to omit returning the `verack` message,
 and instead start sending other messages like `inv` or `sendheaders`. This is either
 an implementation [flaw/optimization](https://developer.bitcoin.org/reference/intro.html#not-a-specification), or a misunderstanding of the protocol doc on my side.
 
