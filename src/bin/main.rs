@@ -4,7 +4,6 @@
 use bitcoin_handshake::*;
 use clap::Parser;
 use color_eyre::eyre::{eyre, Result};
-use env_logger::Env;
 use futures::future::join_all;
 use std::{
     fmt::Display,
@@ -16,6 +15,7 @@ use tokio::{
     net::{lookup_host, TcpStream},
     time::timeout,
 };
+use tracing::instrument;
 
 #[derive(Debug, Parser)]
 #[command(author, version, about, long_about = None)]
@@ -34,15 +34,15 @@ struct Args {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+    tracing_subscriber::fmt::init();
     color_eyre::install()?;
     let args = Args::parse();
 
-    log::info!("Resolving DNS seed `{}`", args.dns_seed);
+    tracing::info!("Resolving DNS seed `{}`", args.dns_seed);
 
     let resolved_addrs = lookup_host((args.dns_seed, args.port)).await?;
     let resolved_addrs = resolved_addrs.collect::<Vec<_>>();
-    log::info!(
+    tracing::info!(
         "Resolved {} addreses. Starting handshakes...",
         resolved_addrs.len()
     );
@@ -59,7 +59,7 @@ async fn main() -> Result<()> {
         .filter(|x| matches!(x, Ok(MessageExchangeResult::Ok)))
         .count();
 
-    log::info!(
+    tracing::info!(
         "Finished! Handshake results: {} OK | {} PARTIALLY OK | {} FAILED",
         ok,
         partial_ok,
@@ -69,6 +69,7 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
+#[instrument]
 async fn process(target: SocketAddr, timeout_secs: u64) -> Result<MessageExchangeResult> {
     let result = timeout(Duration::from_secs(timeout_secs), process_inner(target)).await;
 
@@ -78,18 +79,19 @@ async fn process(target: SocketAddr, timeout_secs: u64) -> Result<MessageExchang
     };
 
     match result {
-        Ok(MessageExchangeResult::Ok) => log::debug!("`{}`: Handshake succeeded", target),
+        Ok(MessageExchangeResult::Ok) => tracing::debug!("`{}`: Handshake succeeded", target),
         Ok(MessageExchangeResult::PartialOk) => {
-            log::debug!("`{}`: Handshake *partially* succeeded", target)
+            tracing::debug!("`{}`: Handshake *partially* succeeded", target)
         }
-        Err(ref e) => log::error!("`{}`: Handshake attempt failed with: {}", target, e),
+        Err(ref e) => tracing::error!("`{}`: Handshake attempt failed with: {}", target, e),
     };
 
     result
 }
 
+#[instrument]
 async fn process_inner(target: SocketAddr) -> Result<MessageExchangeResult> {
-    log::debug!("`{}`: Starting handshake", target);
+    tracing::debug!("`{}`: Starting handshake", target);
     let mut stream = TcpStream::connect(target).await?;
 
     // TODO: check for nonce conflicts!
@@ -139,20 +141,20 @@ async fn send_and_expect(
         Payload::Version(d) => Some(d.nonce()),
     };
     let bytes = message.to_bytes()?;
-    log::trace!("`{}`: TX {:#?}", target, message);
+    tracing::trace!("`{}`: TX {:#?}", target, message);
     stream.write_all(&bytes).await?;
-    log::debug!("`{}`: Sent {} bytes", target, bytes.len());
+    tracing::debug!("`{}`: Sent {} bytes", target, bytes.len());
 
     // expect same message type
     let mut br = BufReader::new(stream);
     let mut rx = br.fill_buf().await?;
     let n_recv = rx.len();
-    log::debug!("`{}`: Received {} bytes", target, n_recv);
+    tracing::debug!("`{}`: Received {} bytes", target, n_recv);
 
     let msg_recv = match Message::from_bytes(&mut rx) {
         Ok(m) => m,
         Err(bitcoin_handshake::errors::BitcoinMessageError::CommandNameUnknown(m)) => {
-            log::warn!(
+            tracing::warn!(
                 "`{}`: expected message command `{}` but got `{}` instead",
                 target,
                 message.command(),
@@ -162,7 +164,7 @@ async fn send_and_expect(
         }
         Err(e) => return Err(e.into()),
     };
-    log::trace!("`{}`: RX {:#?}", target, msg_recv);
+    tracing::trace!("`{}`: RX {:#?}", target, msg_recv);
     if let Some(n) = nonce {
         if let Payload::Version(version_data) = msg_recv.payload() {
             if version_data.nonce() == n {
@@ -171,7 +173,7 @@ async fn send_and_expect(
         }
     }
     if msg_recv.command() != message.command() {
-        log::warn!(
+        tracing::warn!(
             "`{}`: expected message command `{}` but got `{}` instead",
             target,
             message.command(),

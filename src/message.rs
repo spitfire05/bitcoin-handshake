@@ -268,7 +268,7 @@ impl BitcoinDeserialize for VersionData {
         Self: std::marker::Sized,
     {
         let version = data.read_i32::<LittleEndian>()?;
-        log::trace!("Deserialing version `{}`", version);
+        tracing::trace!("Deserialing version `{}`", version);
         let services = ServiceIdentifier::from_bits_truncate(data.read_u64::<LittleEndian>()?);
         let timestamp = data.read_i64::<LittleEndian>()?;
         let addr_recv_services =
