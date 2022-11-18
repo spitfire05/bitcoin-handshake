@@ -75,6 +75,7 @@ sequenceDiagram
     Node->>bitcoin-handshake: Version
     bitcoin-handshake->>Node: VerAck
     Node->>bitcoin-handshake: VerAck
+    Node-->>bitcoin-handshake: (other messages)
 ```
 
 After this exchange, other messages can flow between nodes.
