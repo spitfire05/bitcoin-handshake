@@ -39,8 +39,7 @@ async fn main() -> Result<()> {
 
     tracing::info!("Resolving DNS seed `{}`", args.dns_seed);
 
-    let resolved_addrs = lookup_host((args.dns_seed, args.port)).await?;
-    let resolved_addrs = resolved_addrs.collect::<Vec<_>>();
+    let resolved_addrs: Vec<_> = lookup_host((args.dns_seed, args.port)).await?.collect();
     tracing::info!(
         "Resolved {} addreses. Starting handshakes...",
         resolved_addrs.len()
