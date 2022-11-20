@@ -35,7 +35,7 @@ pub enum Command {
     /// `version` command_name
     Version,
 
-    /// `verack command_name
+    /// `verack` command_name
     VerAck,
 }
 
