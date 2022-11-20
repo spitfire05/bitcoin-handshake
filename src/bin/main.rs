@@ -81,7 +81,7 @@ async fn process(target: SocketAddr, timeout_secs: u64) -> Result<MessageExchang
     match result {
         Ok(MessageExchangeResult::Ok) => tracing::info!("handshake succeeded"),
         Ok(MessageExchangeResult::PartialOk) => {
-            tracing::info!("`handshake *partially* succeeded")
+            tracing::info!("handshake *partially* succeeded")
         }
         Err(ref e) => tracing::error!("handshake attempt failed with: {}", e),
     };
